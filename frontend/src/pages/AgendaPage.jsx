@@ -108,12 +108,21 @@ export default function AgendaPage() {
       setAppointments(appointmentsRes.data);
       setPatients(patientsRes.data);
       setHolidays(holidaysRes.data);
+      
+      // Set initial working day after holidays are loaded
+      if (!initialLoadDone) {
+        const workingDay = getNextWorkingDay(new Date(), holidaysRes.data);
+        if (format(workingDay, "yyyy-MM-dd") !== format(currentDate, "yyyy-MM-dd")) {
+          setCurrentDate(workingDay);
+        }
+        setInitialLoadDone(true);
+      }
     } catch (error) {
       toast.error("Errore nel caricamento dei dati");
     } finally {
       setLoading(false);
     }
-  }, [ambulatorio, currentDate]);
+  }, [ambulatorio, currentDate, initialLoadDone]);
 
   useEffect(() => {
     fetchData();
