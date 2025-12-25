@@ -12,9 +12,12 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   BarChart3,
   Download,
+  FileSpreadsheet,
+  FileText,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -85,7 +88,6 @@ export default function StatistichePage() {
       const response = await apiClient.get("/statistics", { params });
       setStats(response.data);
 
-      // Fetch compare stats if in compare mode
       if (compareMode) {
         const compareParams = {
           ambulatorio,
@@ -110,12 +112,181 @@ export default function StatistichePage() {
     fetchStats();
   }, [fetchStats]);
 
-  const handleExportPDF = () => {
-    toast.info("Esportazione PDF in sviluppo");
+  const generateExcel = () => {
+    if (!stats) return;
+
+    const tipo = isVillaGinestre ? "PICC" : activeTab;
+    const periodo = mese ? `${MONTHS[mese - 1]?.label}_${anno}` : `Anno_${anno}`;
+    
+    // Create CSV content
+    let csvContent = "REPORT AMBULATORIO INFERMIERISTICO\n";
+    csvContent += `Tipo: ${tipo}\n`;
+    csvContent += `Periodo: ${periodo}\n`;
+    csvContent += `Ambulatorio: ${ambulatorio === "pta_centro" ? "PTA Centro" : "Villa delle Ginestre"}\n\n`;
+    
+    csvContent += "RIEPILOGO GENERALE\n";
+    csvContent += `Totale Accessi;${stats.totale_accessi}\n`;
+    csvContent += `Pazienti Unici;${stats.pazienti_unici}\n\n`;
+    
+    csvContent += "DETTAGLIO PRESTAZIONI\n";
+    csvContent += "Prestazione;Quantità\n";
+    Object.entries(stats.prestazioni || {}).forEach(([key, value]) => {
+      const label = PRESTAZIONI_LABELS[key]?.label || key;
+      csvContent += `${label};${value}\n`;
+    });
+    
+    if (stats.dettaglio_mensile && Object.keys(stats.dettaglio_mensile).length > 0) {
+      csvContent += "\nDETTAGLIO MENSILE\n";
+      csvContent += "Mese;Accessi;Pazienti Unici;";
+      
+      const allPrestazioni = new Set();
+      Object.values(stats.dettaglio_mensile).forEach(data => {
+        Object.keys(data.prestazioni || {}).forEach(p => allPrestazioni.add(p));
+      });
+      
+      allPrestazioni.forEach(p => {
+        csvContent += `${PRESTAZIONI_LABELS[p]?.label || p};`;
+      });
+      csvContent += "\n";
+      
+      Object.entries(stats.dettaglio_mensile)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .forEach(([month, data]) => {
+          const [year, monthNum] = month.split("-");
+          const monthName = MONTHS[parseInt(monthNum) - 1]?.label || month;
+          csvContent += `${monthName} ${year};${data.accessi};${data.pazienti_unici};`;
+          allPrestazioni.forEach(p => {
+            csvContent += `${data.prestazioni?.[p] || 0};`;
+          });
+          csvContent += "\n";
+        });
+    }
+
+    // Download
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Report_${tipo}_${periodo}.csv`;
+    link.click();
+    toast.success("Report Excel (CSV) scaricato");
   };
 
-  const handleExportExcel = () => {
-    toast.info("Esportazione Excel in sviluppo");
+  const generatePDF = () => {
+    if (!stats) return;
+
+    const tipo = isVillaGinestre ? "PICC" : activeTab;
+    const periodo = mese ? `${MONTHS[mese - 1]?.label} ${anno}` : `Anno ${anno}`;
+    const ambulatorioName = ambulatorio === "pta_centro" ? "PTA Centro" : "Villa delle Ginestre";
+
+    // Create printable HTML
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Report ${tipo} - ${periodo}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; color: #1a365d; }
+          h1 { color: #1a56db; border-bottom: 3px solid #1a56db; padding-bottom: 10px; }
+          h2 { color: #1e40af; margin-top: 30px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .info { background: #f0f7ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+          .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
+          .stat-card { background: #fff; border: 2px solid #1a56db; border-radius: 8px; padding: 20px; text-align: center; }
+          .stat-value { font-size: 36px; font-weight: bold; color: #1a56db; }
+          .stat-label { color: #64748b; font-size: 14px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th { background: #1a56db; color: white; padding: 12px; text-align: left; }
+          td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
+          tr:nth-child(even) { background: #f8fafc; }
+          .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #64748b; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>📊 REPORT AMBULATORIO INFERMIERISTICO</h1>
+          <p style="font-size: 18px; color: #64748b;">Statistiche ${tipo}</p>
+        </div>
+        
+        <div class="info">
+          <p><strong>Ambulatorio:</strong> ${ambulatorioName}</p>
+          <p><strong>Periodo:</strong> ${periodo}</p>
+          <p><strong>Tipologia:</strong> ${tipo}</p>
+          <p><strong>Data generazione:</strong> ${new Date().toLocaleDateString('it-IT')}</p>
+        </div>
+
+        <h2>📈 Riepilogo Generale</h2>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-value">${stats.totale_accessi}</div>
+            <div class="stat-label">Totale Accessi</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${stats.pazienti_unici}</div>
+            <div class="stat-label">Pazienti Unici</div>
+          </div>
+        </div>
+
+        <h2>💉 Dettaglio Prestazioni</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Prestazione</th>
+              <th>Quantità</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${Object.entries(stats.prestazioni || {}).map(([key, value]) => `
+              <tr>
+                <td>${PRESTAZIONI_LABELS[key]?.label || key}</td>
+                <td><strong>${value}</strong></td>
+              </tr>
+            `).join('')}
+            ${Object.keys(stats.prestazioni || {}).length === 0 ? '<tr><td colspan="2" style="text-align:center;color:#64748b;">Nessuna prestazione registrata</td></tr>' : ''}
+          </tbody>
+        </table>
+
+        ${stats.dettaglio_mensile && Object.keys(stats.dettaglio_mensile).length > 0 ? `
+          <h2>📅 Dettaglio Mensile</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Mese</th>
+                <th>Accessi</th>
+                <th>Pazienti</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Object.entries(stats.dettaglio_mensile)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([month, data]) => {
+                  const [year, monthNum] = month.split("-");
+                  const monthName = MONTHS[parseInt(monthNum) - 1]?.label || month;
+                  return `
+                    <tr>
+                      <td>${monthName} ${year}</td>
+                      <td>${data.accessi}</td>
+                      <td>${data.pazienti_unici}</td>
+                    </tr>
+                  `;
+                }).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+
+        <div class="footer">
+          <p>Ambulatorio Infermieristico - ASP Palermo</p>
+          <p>Report generato automaticamente</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    printWindow.print();
+    toast.success("Report PDF aperto per la stampa");
   };
 
   const getDiff = (current, previous) => {
@@ -188,12 +359,12 @@ export default function StatistichePage() {
         </div>
 
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExportPDF} data-testid="export-pdf-btn">
-            <Download className="w-4 h-4 mr-2" />
+          <Button variant="outline" onClick={generatePDF} data-testid="export-pdf-btn">
+            <FileText className="w-4 h-4 mr-2" />
             PDF
           </Button>
-          <Button variant="outline" onClick={handleExportExcel} data-testid="export-excel-btn">
-            <Download className="w-4 h-4 mr-2" />
+          <Button variant="outline" onClick={generateExcel} data-testid="export-excel-btn">
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
             Excel
           </Button>
         </div>
@@ -202,7 +373,7 @@ export default function StatistichePage() {
       {/* Filters */}
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-2">
               <Label>Anno</Label>
               <Select value={anno.toString()} onValueChange={(v) => setAnno(parseInt(v))}>
@@ -220,7 +391,7 @@ export default function StatistichePage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Mese (opzionale)</Label>
+              <Label>Mese</Label>
               <Select
                 value={mese?.toString() || "all"}
                 onValueChange={(v) => setMese(v === "all" ? null : parseInt(v))}
@@ -240,16 +411,14 @@ export default function StatistichePage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Confronta con</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
+              <Label>Confronta</Label>
+              <div className="flex items-center gap-2 h-10 px-3 border rounded-md">
+                <Checkbox
                   id="compareMode"
                   checked={compareMode}
-                  onChange={(e) => setCompareMode(e.target.checked)}
-                  className="rounded"
+                  onCheckedChange={setCompareMode}
                 />
-                <label htmlFor="compareMode" className="text-sm">
+                <label htmlFor="compareMode" className="text-sm cursor-pointer">
                   Abilita confronto
                 </label>
               </div>
@@ -301,7 +470,7 @@ export default function StatistichePage() {
         </CardContent>
       </Card>
 
-      {/* Type Tabs (only for PTA Centro) */}
+      {/* Type Tabs */}
       {!isVillaGinestre && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
           <TabsList>
