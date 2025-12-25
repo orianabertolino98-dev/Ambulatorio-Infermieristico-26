@@ -25,7 +25,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, FileText, Download, Check, X, Edit2 } from "lucide-react";
+import { Plus, FileText, Copy, Check, Edit2, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { format, getDaysInMonth } from "date-fns";
 import { it } from "date-fns/locale";
@@ -75,26 +75,26 @@ const CellInput = ({ value, onChange, day, itemId }) => {
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <button
-          className={`w-full h-full min-h-[28px] text-xs font-medium rounded transition-colors ${
+          className={`w-full h-full min-h-[32px] text-xs font-medium rounded transition-colors border ${
             hasValue
               ? value.toLowerCase() === "si" || value.toLowerCase() === "sì"
-                ? "bg-green-100 text-green-700 hover:bg-green-200"
+                ? "bg-green-100 text-green-700 hover:bg-green-200 border-green-300"
                 : value.toLowerCase() === "no"
-                ? "bg-red-100 text-red-700 hover:bg-red-200"
-                : "bg-blue-100 text-blue-700 hover:bg-blue-200"
-              : "hover:bg-accent text-muted-foreground"
+                ? "bg-red-100 text-red-700 hover:bg-red-200 border-red-300"
+                : "bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-300"
+              : "hover:bg-accent text-muted-foreground border-transparent hover:border-gray-300"
           }`}
         >
           {displayValue}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-36 p-2" align="center">
+      <PopoverContent className="w-40 p-2" align="center">
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-1">
             <Button
               size="sm"
               variant={value === "Sì" ? "default" : "outline"}
-              className="h-8 text-xs"
+              className="h-9 text-sm font-medium"
               onClick={() => handleQuickSelect("Sì")}
             >
               Sì
@@ -102,7 +102,7 @@ const CellInput = ({ value, onChange, day, itemId }) => {
             <Button
               size="sm"
               variant={value === "No" ? "default" : "outline"}
-              className="h-8 text-xs"
+              className="h-9 text-sm font-medium"
               onClick={() => handleQuickSelect("No")}
             >
               No
@@ -112,19 +112,19 @@ const CellInput = ({ value, onChange, day, itemId }) => {
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value.slice(0, 5))}
-              placeholder="..."
-              className="h-8 text-xs"
+              placeholder="Testo..."
+              className="h-9 text-sm"
               maxLength={5}
             />
-            <Button size="sm" className="h-8 px-2" onClick={handleCustomSave}>
-              <Check className="w-3 h-3" />
+            <Button size="sm" className="h-9 px-3" onClick={handleCustomSave}>
+              <Check className="w-4 h-4" />
             </Button>
           </div>
           {hasValue && (
             <Button
               size="sm"
               variant="ghost"
-              className="w-full h-7 text-xs text-muted-foreground"
+              className="w-full h-8 text-xs text-muted-foreground"
               onClick={() => handleQuickSelect("")}
             >
               Cancella
@@ -148,7 +148,8 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
   const generateMonthOptions = () => {
     const options = [];
     const currentYear = new Date().getFullYear();
-    for (let year = currentYear; year <= currentYear + 1; year++) {
+    // Include past year for historical data
+    for (let year = currentYear - 1; year <= currentYear + 1; year++) {
       for (let month = 1; month <= 12; month++) {
         options.push({
           value: `${year}-${month.toString().padStart(2, "0")}`,
@@ -213,6 +214,27 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
     });
   };
 
+  // Copy from previous day function
+  const handleCopyFromPreviousDay = (currentDay) => {
+    const prevDay = currentDay - 1;
+    if (prevDay < 1) {
+      toast.error("Non c'è un giorno precedente da copiare");
+      return;
+    }
+    
+    const prevDayData = editingGiorni[prevDay];
+    if (!prevDayData || Object.keys(prevDayData).length === 0) {
+      toast.error("Il giorno precedente non ha dati");
+      return;
+    }
+
+    setEditingGiorni((prev) => ({
+      ...prev,
+      [currentDay]: { ...prevDayData },
+    }));
+    toast.success(`Dati copiati dal giorno ${prevDay}`);
+  };
+
   const handleSaveEdit = async () => {
     setSaving(true);
     try {
@@ -240,13 +262,19 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
     return Object.keys(giorni || {}).length;
   };
 
+  // Get formatted date for a specific day in the month
+  const getDateForDay = (mese, day) => {
+    const [year, month] = mese.split("-").map(Number);
+    return format(new Date(year, month - 1, day), "dd/MM/yyyy");
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-lg font-semibold">Schede Medicazione PICC</h2>
           <p className="text-sm text-muted-foreground">
-            Tracciamento mensile - clicca sulle celle per inserire Sì/No o note brevi
+            Tracciamento mensile - clicca sulle celle per inserire Sì/No o note brevi (max 5 caratteri)
           </p>
         </div>
         <Button onClick={() => setDialogOpen(true)} data-testid="new-scheda-gestione-btn">
@@ -320,7 +348,7 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nuova Scheda Mensile</DialogTitle>
+            <DialogTitle>Nuova Scheda Mensile PICC</DialogTitle>
             <DialogDescription>
               Seleziona il mese per la nuova scheda medicazione PICC
             </DialogDescription>
@@ -353,48 +381,78 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
         </DialogContent>
       </Dialog>
 
-      {/* Edit Dialog */}
+      {/* Edit Dialog - Improved visualization */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-[95vw] max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="capitalize">
+        <DialogContent className="max-w-[98vw] max-h-[95vh] p-4">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="capitalize flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
               Scheda {selectedScheda && format(new Date(selectedScheda.mese + "-01"), "MMMM yyyy", { locale: it })}
             </DialogTitle>
             <DialogDescription>
-              Clicca su una cella per inserire Sì, No o una nota breve (max 5 caratteri)
+              Clicca su una cella per inserire Sì/No o una nota breve. Usa il pulsante copia per copiare i dati dal giorno precedente.
             </DialogDescription>
           </DialogHeader>
 
           {selectedScheda && (
-            <div className="space-y-4">
-              <ScrollArea className="h-[55vh]">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs border-collapse min-w-[800px]">
-                    <thead>
+            <div className="space-y-3">
+              <ScrollArea className="h-[60vh]">
+                <div className="overflow-x-auto pb-4">
+                  <table className="w-full text-sm border-collapse min-w-[900px]">
+                    <thead className="sticky top-0 z-20">
                       <tr>
-                        <th className="sticky left-0 z-10 bg-primary text-primary-foreground p-2 text-left min-w-[160px] rounded-tl-lg">
-                          Attività
+                        <th className="sticky left-0 z-30 bg-emerald-600 text-white p-3 text-left min-w-[180px] rounded-tl-lg font-semibold">
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            Attività
+                          </div>
                         </th>
                         {getDaysArray(selectedScheda.mese).map((day, idx) => (
                           <th
                             key={day}
-                            className={`bg-primary text-primary-foreground p-1 min-w-[36px] text-center ${
+                            className={`bg-emerald-600 text-white p-1 min-w-[44px] text-center font-medium ${
                               idx === getDaysArray(selectedScheda.mese).length - 1 ? "rounded-tr-lg" : ""
                             }`}
                           >
-                            {day}
+                            <div className="flex flex-col items-center">
+                              <span className="text-base font-bold">{day}</span>
+                              <span className="text-[10px] opacity-80">
+                                {getDateForDay(selectedScheda.mese, day).slice(0, 5)}
+                              </span>
+                            </div>
                           </th>
+                        ))}
+                      </tr>
+                      {/* Copy row */}
+                      <tr>
+                        <td className="sticky left-0 z-20 bg-emerald-100 p-2 font-medium text-emerald-700 text-xs">
+                          <Copy className="w-4 h-4 inline mr-1" /> Copia da precedente
+                        </td>
+                        {getDaysArray(selectedScheda.mese).map((day) => (
+                          <td key={day} className="bg-emerald-50 p-1 text-center">
+                            {day > 1 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-emerald-200"
+                                onClick={() => handleCopyFromPreviousDay(day)}
+                                title={`Copia dal giorno ${day - 1}`}
+                              >
+                                <Copy className="w-3 h-3 text-emerald-600" />
+                              </Button>
+                            )}
+                          </td>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {GESTIONE_ITEMS.map((item, rowIdx) => (
-                        <tr key={item.id} className={rowIdx % 2 === 0 ? "bg-muted/30" : ""}>
-                          <td className="sticky left-0 z-10 bg-slate-100 p-2 font-medium border-b text-xs">
+                        <tr key={item.id} className={rowIdx % 2 === 0 ? "bg-gray-50" : "bg-white"}>
+                          <td className="sticky left-0 z-10 bg-slate-100 p-2 font-medium border-b text-sm whitespace-nowrap">
                             {item.label}
                           </td>
                           {getDaysArray(selectedScheda.mese).map((day) => (
-                            <td key={day} className="p-0.5 border-b border-r">
+                            <td key={day} className="p-0.5 border-b border-r border-gray-200">
                               <CellInput
                                 value={editingGiorni[day]?.[item.id] || ""}
                                 onChange={handleCellChange}
@@ -417,10 +475,11 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
                   onChange={(e) => setEditNote(e.target.value)}
                   rows={2}
                   placeholder="Note aggiuntive..."
+                  className="resize-none"
                 />
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-2 border-t">
                 <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                   Annulla
                 </Button>
