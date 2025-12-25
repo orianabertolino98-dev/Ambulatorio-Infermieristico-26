@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -19,9 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Search,
   Plus,
@@ -29,6 +36,10 @@ import {
   UserCheck,
   UserX,
   ChevronRight,
+  MoreVertical,
+  UserPlus,
+  Pause,
+  Play,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,10 +53,16 @@ export default function PazientiPage() {
   const { ambulatorio } = useAmbulatorio();
   const navigate = useNavigate();
   const [patients, setPatients] = useState([]);
+  const [allPatients, setAllPatients] = useState({ in_cura: [], dimesso: [], sospeso: [] });
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("in_cura");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [selectedPatientForStatus, setSelectedPatientForStatus] = useState(null);
+  const [newStatus, setNewStatus] = useState("");
+  const [statusReason, setStatusReason] = useState("");
+  const [statusNotes, setStatusNotes] = useState("");
   const [newPatient, setNewPatient] = useState({
     nome: "",
     cognome: "",
@@ -57,26 +74,46 @@ export default function PazientiPage() {
     ? PATIENT_TYPES.filter(t => t.value === "PICC")
     : PATIENT_TYPES;
 
-  const fetchPatients = useCallback(async () => {
+  const fetchAllPatients = useCallback(async () => {
+    setLoading(true);
     try {
-      const response = await apiClient.get("/patients", {
-        params: {
-          ambulatorio,
-          status: activeTab,
-          search: searchQuery || undefined,
-        },
+      const [inCuraRes, dimessiRes, sospesiRes] = await Promise.all([
+        apiClient.get("/patients", { params: { ambulatorio, status: "in_cura" } }),
+        apiClient.get("/patients", { params: { ambulatorio, status: "dimesso" } }),
+        apiClient.get("/patients", { params: { ambulatorio, status: "sospeso" } }),
+      ]);
+      
+      setAllPatients({
+        in_cura: inCuraRes.data,
+        dimesso: dimessiRes.data,
+        sospeso: sospesiRes.data,
       });
-      setPatients(response.data);
     } catch (error) {
       toast.error("Errore nel caricamento dei pazienti");
     } finally {
       setLoading(false);
     }
-  }, [ambulatorio, activeTab, searchQuery]);
+  }, [ambulatorio]);
 
   useEffect(() => {
-    fetchPatients();
-  }, [fetchPatients]);
+    fetchAllPatients();
+  }, [fetchAllPatients]);
+
+  // Filter patients based on active tab and search
+  const filteredPatients = allPatients[activeTab]?.filter(p => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return p.nome?.toLowerCase().includes(query) || p.cognome?.toLowerCase().includes(query);
+  }) || [];
+
+  // Get counts for badges
+  const getCounts = () => ({
+    in_cura: allPatients.in_cura?.length || 0,
+    dimesso: allPatients.dimesso?.length || 0,
+    sospeso: allPatients.sospeso?.length || 0,
+  });
+
+  const counts = getCounts();
 
   const handleCreatePatient = async () => {
     if (!newPatient.nome || !newPatient.cognome || !newPatient.tipo) {
@@ -92,11 +129,63 @@ export default function PazientiPage() {
       toast.success("Paziente creato con successo");
       setDialogOpen(false);
       setNewPatient({ nome: "", cognome: "", tipo: "" });
-      fetchPatients();
-      // Navigate to patient detail
+      fetchAllPatients();
       navigate(`/pazienti/${response.data.id}`);
     } catch (error) {
       toast.error(error.response?.data?.detail || "Errore nella creazione");
+    }
+  };
+
+  const openStatusDialog = (patient, targetStatus, e) => {
+    e.stopPropagation();
+    setSelectedPatientForStatus(patient);
+    setNewStatus(targetStatus);
+    setStatusReason("");
+    setStatusNotes("");
+    setStatusDialogOpen(true);
+  };
+
+  const handleStatusChange = async () => {
+    if (!selectedPatientForStatus) return;
+    
+    // Validation
+    if (newStatus === "dimesso" && !statusReason) {
+      toast.error("Seleziona una motivazione per la dimissione");
+      return;
+    }
+    if (newStatus === "sospeso" && !statusNotes) {
+      toast.error("Inserisci una nota per la sospensione");
+      return;
+    }
+    if (newStatus === "dimesso" && statusReason === "altro" && !statusNotes) {
+      toast.error("Inserisci una nota per specificare il motivo");
+      return;
+    }
+
+    try {
+      const updateData = { status: newStatus };
+      
+      if (newStatus === "dimesso") {
+        updateData.discharge_reason = statusReason;
+        updateData.discharge_notes = statusNotes;
+      } else if (newStatus === "sospeso") {
+        updateData.suspend_notes = statusNotes;
+      }
+      // When reactivating (in_cura), we keep the history in discharge/suspend fields
+
+      await apiClient.put(`/patients/${selectedPatientForStatus.id}`, updateData);
+      
+      const statusLabels = {
+        in_cura: "ripreso in cura",
+        dimesso: "dimesso",
+        sospeso: "sospeso",
+      };
+      
+      toast.success(`Paziente ${statusLabels[newStatus]}`);
+      setStatusDialogOpen(false);
+      fetchAllPatients();
+    } catch (error) {
+      toast.error("Errore nel cambio stato");
     }
   };
 
@@ -109,12 +198,36 @@ export default function PazientiPage() {
     return `${cognome?.charAt(0) || ""}${nome?.charAt(0) || ""}`.toUpperCase();
   };
 
-  const getCounts = () => {
-    return {
-      in_cura: patients.filter(p => p.status === "in_cura").length,
-      dimesso: patients.filter(p => p.status === "dimesso").length,
-      sospeso: patients.filter(p => p.status === "sospeso").length,
-    };
+  const getStatusActions = (patient) => {
+    const currentStatus = patient.status;
+    const actions = [];
+    
+    if (currentStatus !== "in_cura") {
+      actions.push({
+        label: "Riprendi in Cura",
+        icon: Play,
+        status: "in_cura",
+        color: "text-green-600",
+      });
+    }
+    if (currentStatus !== "sospeso") {
+      actions.push({
+        label: "Sospendi",
+        icon: Pause,
+        status: "sospeso",
+        color: "text-orange-600",
+      });
+    }
+    if (currentStatus !== "dimesso") {
+      actions.push({
+        label: "Dimetti",
+        icon: UserX,
+        status: "dimesso",
+        color: "text-slate-600",
+      });
+    }
+    
+    return actions;
   };
 
   return (
@@ -132,6 +245,44 @@ export default function PazientiPage() {
           <Plus className="w-4 h-4 mr-2" />
           Nuovo Paziente
         </Button>
+      </div>
+
+      {/* Patient Counters */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {!isVillaGinestre && (
+          <Card className="border-blue-200 bg-blue-50/50">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="text-2xl font-bold text-blue-600">
+                {allPatients.in_cura?.filter(p => p.tipo === "MED").length || 0}
+              </div>
+              <p className="text-sm text-blue-600/80 font-medium">MED in cura</p>
+            </CardContent>
+          </Card>
+        )}
+        <Card className="border-emerald-200 bg-emerald-50/50">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="text-2xl font-bold text-emerald-600">
+              {allPatients.in_cura?.filter(p => p.tipo === "PICC").length || 0}
+            </div>
+            <p className="text-sm text-emerald-600/80 font-medium">PICC in cura</p>
+          </CardContent>
+        </Card>
+        {!isVillaGinestre && (
+          <Card className="border-purple-200 bg-purple-50/50">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="text-2xl font-bold text-purple-600">
+                {allPatients.in_cura?.filter(p => p.tipo === "PICC_MED").length || 0}
+              </div>
+              <p className="text-sm text-purple-600/80 font-medium">PICC+MED in cura</p>
+            </CardContent>
+          </Card>
+        )}
+        <Card className="border-green-200 bg-green-50/50">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="text-2xl font-bold text-green-600">{counts.in_cura}</div>
+            <p className="text-sm text-green-600/80 font-medium">Totale in cura</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Search */}
@@ -152,14 +303,17 @@ export default function PazientiPage() {
           <TabsTrigger value="in_cura" className="gap-2" data-testid="tab-in-cura">
             <Users className="w-4 h-4" />
             In Cura
+            <Badge variant="secondary" className="ml-1">{counts.in_cura}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="sospeso" className="gap-2" data-testid="tab-sospeso">
+            <Pause className="w-4 h-4" />
+            Sospesi
+            <Badge variant="secondary" className="ml-1">{counts.sospeso}</Badge>
           </TabsTrigger>
           <TabsTrigger value="dimesso" className="gap-2" data-testid="tab-dimesso">
             <UserCheck className="w-4 h-4" />
             Dimessi
-          </TabsTrigger>
-          <TabsTrigger value="sospeso" className="gap-2" data-testid="tab-sospeso">
-            <UserX className="w-4 h-4" />
-            Sospesi
+            <Badge variant="secondary" className="ml-1">{counts.dimesso}</Badge>
           </TabsTrigger>
         </TabsList>
 
@@ -168,7 +322,7 @@ export default function PazientiPage() {
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          ) : patients.length === 0 ? (
+          ) : filteredPatients.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Users className="w-12 h-12 text-muted-foreground mb-4" />
@@ -186,7 +340,7 @@ export default function PazientiPage() {
             </Card>
           ) : (
             <div className="grid gap-3">
-              {patients.map((patient) => (
+              {filteredPatients.map((patient) => (
                 <Card
                   key={patient.id}
                   data-testid={`patient-card-${patient.id}`}
@@ -200,10 +354,50 @@ export default function PazientiPage() {
                     <div className="patient-name">
                       {patient.cognome} {patient.nome}
                     </div>
-                    <Badge className={`patient-type ${getTypeColor(patient.tipo)}`}>
-                      {patient.tipo === "PICC_MED" ? "PICC + MED" : patient.tipo}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`patient-type ${getTypeColor(patient.tipo)}`}>
+                        {patient.tipo === "PICC_MED" ? "PICC + MED" : patient.tipo}
+                      </Badge>
+                      {patient.discharge_reason && activeTab === "dimesso" && (
+                        <span className="text-xs text-muted-foreground">
+                          ({patient.discharge_reason === "guarito" ? "Guarito" : 
+                            patient.discharge_reason === "adi" ? "ADI" : "Altro"})
+                        </span>
+                      )}
+                    </div>
                   </div>
+                  
+                  {/* Status Actions Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {getStatusActions(patient).map((action, idx) => (
+                        <DropdownMenuItem
+                          key={action.status}
+                          onClick={(e) => openStatusDialog(patient, action.status, e)}
+                          className={action.color}
+                        >
+                          <action.icon className="w-4 h-4 mr-2" />
+                          {action.label}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/pazienti/${patient.id}`);
+                        }}
+                      >
+                        <ChevronRight className="w-4 h-4 mr-2" />
+                        Apri Cartella
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  
                   <ChevronRight className="w-5 h-5 text-muted-foreground" />
                 </Card>
               ))}
@@ -280,6 +474,91 @@ export default function PazientiPage() {
                 data-testid="confirm-create-patient-btn"
               >
                 Crea e Apri Cartella
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Status Change Dialog */}
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {newStatus === "in_cura" && "Riprendi in Cura"}
+              {newStatus === "dimesso" && "Dimetti Paziente"}
+              {newStatus === "sospeso" && "Sospendi Paziente"}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedPatientForStatus && (
+                <span className="font-medium">
+                  {selectedPatientForStatus.cognome} {selectedPatientForStatus.nome}
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {newStatus === "in_cura" && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800">
+                  Il paziente verrà riportato in stato "In Cura". Lo storico delle dimissioni/sospensioni precedenti verrà conservato.
+                </p>
+              </div>
+            )}
+
+            {newStatus === "dimesso" && (
+              <div className="space-y-2">
+                <Label>Motivazione *</Label>
+                <Select value={statusReason} onValueChange={setStatusReason}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona motivazione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="guarito">Guarito</SelectItem>
+                    <SelectItem value="adi">ADI</SelectItem>
+                    <SelectItem value="altro">Altro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {(newStatus === "sospeso" || (newStatus === "dimesso" && statusReason === "altro")) && (
+              <div className="space-y-2">
+                <Label>
+                  Note {newStatus === "sospeso" ? "*" : "(opzionale)"}
+                </Label>
+                <Textarea
+                  value={statusNotes}
+                  onChange={(e) => setStatusNotes(e.target.value)}
+                  placeholder={
+                    newStatus === "sospeso"
+                      ? "Es: Ricovero ospedaliero, Vacanza, ecc."
+                      : "Specifica il motivo della dimissione..."
+                  }
+                  rows={3}
+                />
+              </div>
+            )}
+
+            {newStatus === "dimesso" && statusReason && statusReason !== "altro" && (
+              <div className="space-y-2">
+                <Label>Note (opzionale)</Label>
+                <Textarea
+                  value={statusNotes}
+                  onChange={(e) => setStatusNotes(e.target.value)}
+                  placeholder="Note aggiuntive..."
+                  rows={2}
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>
+                Annulla
+              </Button>
+              <Button onClick={handleStatusChange}>
+                Conferma
               </Button>
             </div>
           </div>
