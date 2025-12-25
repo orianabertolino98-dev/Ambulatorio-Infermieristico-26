@@ -3,6 +3,7 @@ import { apiClient } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -18,10 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, FileText, Download, Check, X } from "lucide-react";
+import { Plus, FileText, Download, Check, X, Edit2 } from "lucide-react";
 import { toast } from "sonner";
-import { format, getDaysInMonth, startOfMonth } from "date-fns";
+import { format, getDaysInMonth } from "date-fns";
 import { it } from "date-fns/locale";
 
 const GESTIONE_ITEMS = [
@@ -47,6 +53,89 @@ const GESTIONE_ITEMS = [
   { id: "emocoltura", label: "Emocoltura" },
 ];
 
+// Quick input component for cell editing
+const CellInput = ({ value, onChange, day, itemId }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value || "");
+
+  const handleQuickSelect = (val) => {
+    onChange(day, itemId, val);
+    setIsOpen(false);
+  };
+
+  const handleCustomSave = () => {
+    onChange(day, itemId, inputValue);
+    setIsOpen(false);
+  };
+
+  const displayValue = value || "-";
+  const hasValue = value && value !== "-";
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className={`w-full h-full min-h-[28px] text-xs font-medium rounded transition-colors ${
+            hasValue
+              ? value.toLowerCase() === "si" || value.toLowerCase() === "sì"
+                ? "bg-green-100 text-green-700 hover:bg-green-200"
+                : value.toLowerCase() === "no"
+                ? "bg-red-100 text-red-700 hover:bg-red-200"
+                : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+              : "hover:bg-accent text-muted-foreground"
+          }`}
+        >
+          {displayValue}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-36 p-2" align="center">
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-1">
+            <Button
+              size="sm"
+              variant={value === "Sì" ? "default" : "outline"}
+              className="h-8 text-xs"
+              onClick={() => handleQuickSelect("Sì")}
+            >
+              Sì
+            </Button>
+            <Button
+              size="sm"
+              variant={value === "No" ? "default" : "outline"}
+              className="h-8 text-xs"
+              onClick={() => handleQuickSelect("No")}
+            >
+              No
+            </Button>
+          </div>
+          <div className="flex gap-1">
+            <Input
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value.slice(0, 5))}
+              placeholder="..."
+              className="h-8 text-xs"
+              maxLength={5}
+            />
+            <Button size="sm" className="h-8 px-2" onClick={handleCustomSave}>
+              <Check className="w-3 h-3" />
+            </Button>
+          </div>
+          {hasValue && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="w-full h-7 text-xs text-muted-foreground"
+              onClick={() => handleQuickSelect("")}
+            >
+              Cancella
+            </Button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -54,6 +143,7 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
   const [newMese, setNewMese] = useState(format(new Date(), "yyyy-MM"));
   const [editingGiorni, setEditingGiorni] = useState({});
   const [editNote, setEditNote] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const generateMonthOptions = () => {
     const options = [];
@@ -70,7 +160,6 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
   };
 
   const handleCreate = async () => {
-    // Check if month already exists
     if (schede.some((s) => s.mese === newMese)) {
       toast.error("Esiste già una scheda per questo mese");
       return;
@@ -87,7 +176,6 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
       toast.success("Scheda mensile creata");
       setDialogOpen(false);
       onRefresh();
-      // Open edit dialog for new scheda
       setSelectedScheda(response.data);
       setEditingGiorni(response.data.giorni || {});
       setEditNote(response.data.note || "");
@@ -104,30 +192,41 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
     setEditDialogOpen(true);
   };
 
-  const handleToggleDay = (day, itemId) => {
+  const handleCellChange = (day, itemId, value) => {
     setEditingGiorni((prev) => {
       const dayData = prev[day] || {};
+      if (!value || value === "") {
+        const { [itemId]: removed, ...rest } = dayData;
+        if (Object.keys(rest).length === 0) {
+          const { [day]: removedDay, ...restDays } = prev;
+          return restDays;
+        }
+        return { ...prev, [day]: rest };
+      }
       return {
         ...prev,
         [day]: {
           ...dayData,
-          [itemId]: !dayData[itemId],
+          [itemId]: value,
         },
       };
     });
   };
 
   const handleSaveEdit = async () => {
+    setSaving(true);
     try {
       await apiClient.put(`/schede-gestione-picc/${selectedScheda.id}`, {
         giorni: editingGiorni,
         note: editNote,
       });
-      toast.success("Scheda aggiornata");
+      toast.success("Scheda salvata");
       setEditDialogOpen(false);
       onRefresh();
     } catch (error) {
       toast.error("Errore nel salvataggio");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -137,13 +236,17 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
     return Array.from({ length: daysCount }, (_, i) => i + 1);
   };
 
+  const getFilledDaysCount = (giorni) => {
+    return Object.keys(giorni || {}).length;
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-lg font-semibold">Schede Gestione Mensile PICC</h2>
+          <h2 className="text-lg font-semibold">Schede Medicazione PICC</h2>
           <p className="text-sm text-muted-foreground">
-            Tracciamento giornaliero delle attività di gestione catetere
+            Tracciamento mensile - clicca sulle celle per inserire Sì/No o note brevi
           </p>
         </div>
         <Button onClick={() => setDialogOpen(true)} data-testid="new-scheda-gestione-btn">
@@ -156,7 +259,7 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Nessuna scheda di gestione presente</p>
+            <p className="text-muted-foreground">Nessuna scheda presente</p>
             <Button
               variant="link"
               onClick={() => setDialogOpen(true)}
@@ -169,7 +272,7 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
       ) : (
         <div className="grid gap-3">
           {schede.map((scheda) => {
-            const completedDays = Object.keys(scheda.giorni || {}).length;
+            const completedDays = getFilledDaysCount(scheda.giorni);
             const totalDays = getDaysInMonth(new Date(scheda.mese + "-01"));
             return (
               <Card
@@ -184,17 +287,17 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
                     </CardTitle>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">
-                        {completedDays}/{totalDays} giorni
+                        {completedDays}/{totalDays} giorni compilati
                       </span>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          toast.info("Funzione download in sviluppo");
+                          handleOpenEdit(scheda);
                         }}
                       >
-                        <Download className="w-4 h-4" />
+                        <Edit2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
@@ -219,7 +322,7 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
           <DialogHeader>
             <DialogTitle>Nuova Scheda Mensile</DialogTitle>
             <DialogDescription>
-              Seleziona il mese per la nuova scheda di gestione PICC
+              Seleziona il mese per la nuova scheda medicazione PICC
             </DialogDescription>
           </DialogHeader>
 
@@ -258,24 +361,26 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
               Scheda {selectedScheda && format(new Date(selectedScheda.mese + "-01"), "MMMM yyyy", { locale: it })}
             </DialogTitle>
             <DialogDescription>
-              Clicca sulle celle per registrare le attività giornaliere
+              Clicca su una cella per inserire Sì, No o una nota breve (max 5 caratteri)
             </DialogDescription>
           </DialogHeader>
 
           {selectedScheda && (
             <div className="space-y-4">
-              <ScrollArea className="h-[50vh]">
-                <div className="table-responsive">
-                  <table className="w-full text-xs border-collapse">
+              <ScrollArea className="h-[55vh]">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse min-w-[800px]">
                     <thead>
                       <tr>
-                        <th className="sticky left-0 z-10 bg-primary text-primary-foreground p-2 text-left min-w-[150px]">
+                        <th className="sticky left-0 z-10 bg-primary text-primary-foreground p-2 text-left min-w-[160px] rounded-tl-lg">
                           Attività
                         </th>
-                        {getDaysArray(selectedScheda.mese).map((day) => (
+                        {getDaysArray(selectedScheda.mese).map((day, idx) => (
                           <th
                             key={day}
-                            className="bg-primary text-primary-foreground p-2 min-w-[32px] text-center"
+                            className={`bg-primary text-primary-foreground p-1 min-w-[36px] text-center ${
+                              idx === getDaysArray(selectedScheda.mese).length - 1 ? "rounded-tr-lg" : ""
+                            }`}
                           >
                             {day}
                           </th>
@@ -283,29 +388,21 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
                       </tr>
                     </thead>
                     <tbody>
-                      {GESTIONE_ITEMS.map((item) => (
-                        <tr key={item.id} className="border-b">
-                          <td className="sticky left-0 z-10 bg-muted p-2 font-medium">
+                      {GESTIONE_ITEMS.map((item, rowIdx) => (
+                        <tr key={item.id} className={rowIdx % 2 === 0 ? "bg-muted/30" : ""}>
+                          <td className="sticky left-0 z-10 bg-slate-100 p-2 font-medium border-b text-xs">
                             {item.label}
                           </td>
-                          {getDaysArray(selectedScheda.mese).map((day) => {
-                            const isChecked = editingGiorni[day]?.[item.id];
-                            return (
-                              <td
-                                key={day}
-                                className={`p-1 text-center cursor-pointer hover:bg-accent transition-colors ${
-                                  isChecked ? "bg-primary/10" : ""
-                                }`}
-                                onClick={() => handleToggleDay(day, item.id)}
-                              >
-                                {isChecked ? (
-                                  <Check className="w-4 h-4 mx-auto text-primary" />
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </td>
-                            );
-                          })}
+                          {getDaysArray(selectedScheda.mese).map((day) => (
+                            <td key={day} className="p-0.5 border-b border-r">
+                              <CellInput
+                                value={editingGiorni[day]?.[item.id] || ""}
+                                onChange={handleCellChange}
+                                day={day}
+                                itemId={item.id}
+                              />
+                            </td>
+                          ))}
                         </tr>
                       ))}
                     </tbody>
@@ -327,8 +424,8 @@ export const SchedaGestionePICC = ({ patientId, ambulatorio, schede, onRefresh }
                 <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                   Annulla
                 </Button>
-                <Button onClick={handleSaveEdit} data-testid="save-scheda-gestione-btn">
-                  Salva Modifiche
+                <Button onClick={handleSaveEdit} disabled={saving} data-testid="save-scheda-gestione-btn">
+                  {saving ? "Salvataggio..." : "Salva Modifiche"}
                 </Button>
               </div>
             </div>

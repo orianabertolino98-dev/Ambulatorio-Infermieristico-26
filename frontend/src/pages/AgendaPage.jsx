@@ -3,7 +3,7 @@ import { useAmbulatorio, apiClient } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, addDays, subDays, startOfWeek, isWeekend, parseISO, isSameDay } from "date-fns";
+import { format, addDays, subDays, isWeekend } from "date-fns";
 import { it } from "date-fns/locale";
 import {
   ChevronLeft,
@@ -35,6 +35,7 @@ import {
   Bandage,
   Droplets,
   CircleDot,
+  UserPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,7 +56,6 @@ const PRESTAZIONI_MED = [
   { id: "catetere_vescicale", label: "Catetere vescicale", icon: Droplets },
 ];
 
-// Get next working day
 const getNextWorkingDay = (date) => {
   let d = new Date(date);
   while (isWeekend(d)) {
@@ -72,16 +72,22 @@ export default function AgendaPage() {
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [createPatientDialogOpen, setCreatePatientDialogOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [selectedPrestazioni, setSelectedPrestazioni] = useState([]);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  
+  // New patient form state
+  const [newPatientNome, setNewPatientNome] = useState("");
+  const [newPatientCognome, setNewPatientCognome] = useState("");
 
   const isVillaGinestre = ambulatorio === "villa_ginestre";
 
   const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
       const dateStr = format(currentDate, "yyyy-MM-dd");
       const [appointmentsRes, patientsRes, holidaysRes] = await Promise.all([
@@ -218,6 +224,34 @@ export default function AgendaPage() {
     }
   };
 
+  const handleCreatePatient = async () => {
+    if (!newPatientNome || !newPatientCognome) {
+      toast.error("Inserisci nome e cognome");
+      return;
+    }
+
+    try {
+      const response = await apiClient.post("/patients", {
+        nome: newPatientNome,
+        cognome: newPatientCognome,
+        tipo: selectedSlot?.tipo || "PICC",
+        ambulatorio,
+      });
+
+      toast.success("Paziente creato");
+      setCreatePatientDialogOpen(false);
+      setNewPatientNome("");
+      setNewPatientCognome("");
+      
+      // Refresh patients and select the new one
+      await fetchData();
+      setSelectedPatient(response.data);
+      setSearchQuery(`${response.data.cognome} ${response.data.nome}`);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nella creazione");
+    }
+  };
+
   const prestazioni = selectedSlot?.tipo === "PICC" ? PRESTAZIONI_PICC : PRESTAZIONI_MED;
 
   if (loading) {
@@ -233,7 +267,7 @@ export default function AgendaPage() {
   return (
     <div className="animate-fade-in" data-testid="agenda-page">
       {/* Header */}
-      <div className="agenda-header">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Agenda</h1>
           <p className="text-muted-foreground text-sm">
@@ -241,10 +275,10 @@ export default function AgendaPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={goToPrevDay}
             data-testid="agenda-prev-day"
           >
@@ -255,7 +289,7 @@ export default function AgendaPage() {
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
-                className="min-w-[200px] justify-start font-normal"
+                className="min-w-[220px] justify-start font-medium"
                 data-testid="agenda-date-picker"
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
@@ -280,7 +314,7 @@ export default function AgendaPage() {
 
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={goToNextDay}
             data-testid="agenda-next-day"
           >
@@ -305,53 +339,66 @@ export default function AgendaPage() {
       {/* Agenda Grid */}
       <Card>
         <CardContent className="p-0">
-          <div className="table-responsive">
-            <div className="agenda-grid" style={{ minWidth: "600px" }}>
+          <div className="overflow-x-auto">
+            <div 
+              className="grid gap-px bg-border"
+              style={{ 
+                gridTemplateColumns: isVillaGinestre 
+                  ? "80px 1fr" 
+                  : "80px 1fr 1fr",
+                minWidth: isVillaGinestre ? "400px" : "600px"
+              }}
+            >
               {/* Headers */}
-              <div className="agenda-grid-header">Ora</div>
+              <div className="bg-primary text-primary-foreground font-semibold p-3 text-center text-sm">
+                Ora
+              </div>
+              <div className="bg-emerald-600 text-white font-semibold p-3 text-center text-sm">
+                PICC
+              </div>
               {!isVillaGinestre && (
-                <div className="agenda-grid-header bg-emerald-600">PICC</div>
-              )}
-              {isVillaGinestre ? (
-                <div className="agenda-grid-header bg-emerald-600" style={{ gridColumn: "span 2" }}>
-                  PICC
+                <div className="bg-primary text-primary-foreground font-semibold p-3 text-center text-sm">
+                  MED
                 </div>
-              ) : (
-                <div className="agenda-grid-header">MED</div>
               )}
 
               {/* Time slots */}
               {TIME_SLOTS.map((ora) => (
-                <div key={ora} className="contents">
-                  <div className="agenda-grid-time">{ora}</div>
+                <>
+                  <div key={`time-${ora}`} className="bg-muted font-medium text-sm p-2 flex items-center justify-center">
+                    {ora}
+                  </div>
 
                   {/* PICC Column */}
                   <div
-                    className={`agenda-grid-cell ${holidayToday ? "holiday" : ""}`}
+                    key={`picc-${ora}`}
+                    className={`bg-card min-h-[52px] p-1 ${holidayToday ? "bg-muted cursor-not-allowed" : "cursor-pointer hover:bg-emerald-50"}`}
                     onClick={() => !holidayToday && handleSlotClick(ora, "PICC")}
                     data-testid={`agenda-slot-${ora}-picc`}
                   >
-                    {getAppointmentsForSlot(ora, "PICC").map((apt) => (
-                      <div
-                        key={apt.id}
-                        className="agenda-patient-chip picc group relative"
-                        title={apt.prestazioni.join(", ")}
-                      >
-                        {apt.patient_cognome}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteAppointment(apt.id);
-                          }}
-                          className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-xs"
+                    <div className="flex flex-wrap gap-1">
+                      {getAppointmentsForSlot(ora, "PICC").map((apt) => (
+                        <div
+                          key={apt.id}
+                          className="agenda-patient-chip picc group relative"
+                          title={apt.prestazioni.join(", ")}
                         >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                          <span className="truncate max-w-[100px]">{apt.patient_cognome}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteAppointment(apt.id);
+                            }}
+                            className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-xs transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                     {!holidayToday && getAppointmentsForSlot(ora, "PICC").length < 2 && (
-                      <div className="text-xs text-muted-foreground opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center h-full">
-                        <Plus className="w-3 h-3" />
+                      <div className="text-xs text-muted-foreground opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center mt-1">
+                        <Plus className="w-3 h-3 mr-1" /> Aggiungi
                       </div>
                     )}
                   </div>
@@ -359,36 +406,39 @@ export default function AgendaPage() {
                   {/* MED Column (only for PTA Centro) */}
                   {!isVillaGinestre && (
                     <div
-                      className={`agenda-grid-cell ${holidayToday ? "holiday" : ""}`}
+                      key={`med-${ora}`}
+                      className={`bg-card min-h-[52px] p-1 ${holidayToday ? "bg-muted cursor-not-allowed" : "cursor-pointer hover:bg-blue-50"}`}
                       onClick={() => !holidayToday && handleSlotClick(ora, "MED")}
                       data-testid={`agenda-slot-${ora}-med`}
                     >
-                      {getAppointmentsForSlot(ora, "MED").map((apt) => (
-                        <div
-                          key={apt.id}
-                          className="agenda-patient-chip med group relative"
-                          title={apt.prestazioni.join(", ")}
-                        >
-                          {apt.patient_cognome}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteAppointment(apt.id);
-                            }}
-                            className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-xs"
+                      <div className="flex flex-wrap gap-1">
+                        {getAppointmentsForSlot(ora, "MED").map((apt) => (
+                          <div
+                            key={apt.id}
+                            className="agenda-patient-chip med group relative"
+                            title={apt.prestazioni.join(", ")}
                           >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
+                            <span className="truncate max-w-[100px]">{apt.patient_cognome}</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteAppointment(apt.id);
+                              }}
+                              className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-xs transition-opacity"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                       {!holidayToday && getAppointmentsForSlot(ora, "MED").length < 2 && (
-                        <div className="text-xs text-muted-foreground opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center h-full">
-                          <Plus className="w-3 h-3" />
+                        <div className="text-xs text-muted-foreground opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center mt-1">
+                          <Plus className="w-3 h-3 mr-1" /> Aggiungi
                         </div>
                       )}
                     </div>
                   )}
-                </div>
+                </>
               ))}
             </div>
           </div>
@@ -412,7 +462,18 @@ export default function AgendaPage() {
           <div className="space-y-4">
             {/* Patient Search */}
             <div className="space-y-2">
-              <Label>Paziente</Label>
+              <div className="flex items-center justify-between">
+                <Label>Paziente</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCreatePatientDialogOpen(true)}
+                  className="h-7 text-xs"
+                >
+                  <UserPlus className="w-3 h-3 mr-1" />
+                  Nuovo paziente
+                </Button>
+              </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -471,7 +532,7 @@ export default function AgendaPage() {
 
             {/* Prestazioni */}
             <div className="space-y-2">
-              <Label>Prestazioni</Label>
+              <Label>Prestazioni (seleziona una o più)</Label>
               <div className="grid gap-2">
                 {prestazioni.map((prest) => (
                   <div
@@ -505,6 +566,48 @@ export default function AgendaPage() {
                 data-testid="agenda-add-appointment-btn"
               >
                 Aggiungi
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Patient Dialog */}
+      <Dialog open={createPatientDialogOpen} onOpenChange={setCreatePatientDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Nuovo Paziente Rapido</DialogTitle>
+            <DialogDescription>
+              Crea un nuovo paziente {selectedSlot?.tipo || "PICC"} per aggiungerlo subito in agenda
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Cognome *</Label>
+              <Input
+                value={newPatientCognome}
+                onChange={(e) => setNewPatientCognome(e.target.value)}
+                placeholder="Cognome"
+                data-testid="quick-patient-cognome"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Nome *</Label>
+              <Input
+                value={newPatientNome}
+                onChange={(e) => setNewPatientNome(e.target.value)}
+                placeholder="Nome"
+                data-testid="quick-patient-nome"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setCreatePatientDialogOpen(false)}>
+                Annulla
+              </Button>
+              <Button onClick={handleCreatePatient} data-testid="quick-patient-create-btn">
+                Crea e Seleziona
               </Button>
             </div>
           </div>
