@@ -234,6 +234,23 @@ export default function PatientDetailPage() {
         </div>
 
         <div className="flex gap-2">
+          {/* Show "Riprendi in Cura" for dimesso/sospeso patients */}
+          {(patient.status === "dimesso" || patient.status === "sospeso") && (
+            <Button
+              variant="default"
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => {
+                setStatusAction("in_cura");
+                setStatusReason("");
+                setStatusNotes("");
+                setStatusDialogOpen(true);
+              }}
+              data-testid="reactivate-patient-btn"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Riprendi in Cura
+            </Button>
+          )}
           {patient.status === "in_cura" && (
             <>
               <Button
@@ -263,6 +280,33 @@ export default function PatientDetailPage() {
                 Dimetti
               </Button>
             </>
+          )}
+          {patient.status !== "in_cura" && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setStatusAction("sospeso");
+                if (patient.status === "sospeso") {
+                  setStatusAction("dimesso");
+                }
+                setStatusReason("");
+                setStatusNotes("");
+                setStatusDialogOpen(true);
+              }}
+              data-testid="change-status-btn"
+            >
+              {patient.status === "sospeso" ? (
+                <>
+                  <UserMinus className="w-4 h-4 mr-2" />
+                  Dimetti
+                </>
+              ) : (
+                <>
+                  <UserX className="w-4 h-4 mr-2" />
+                  Sospendi
+                </>
+              )}
+            </Button>
           )}
           <Button onClick={handleSavePatient} disabled={saving} data-testid="save-patient-btn">
             <Save className="w-4 h-4 mr-2" />
