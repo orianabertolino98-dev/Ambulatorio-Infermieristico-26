@@ -145,17 +145,17 @@ export default function AgendaPage() {
     }
   }, [searchQuery, patients, selectedSlot]);
 
-  const goToToday = () => setCurrentDate(getNextWorkingDay(new Date()));
+  const goToToday = () => setCurrentDate(getNextWorkingDay(new Date(), holidays));
   const goToPrevDay = () => {
     let newDate = subDays(currentDate, 1);
-    while (isWeekend(newDate)) {
+    while (isWeekend(newDate) || holidays.includes(format(newDate, "yyyy-MM-dd"))) {
       newDate = subDays(newDate, 1);
     }
     setCurrentDate(new Date(newDate));
   };
   const goToNextDay = () => {
     let newDate = addDays(currentDate, 1);
-    while (isWeekend(newDate)) {
+    while (isWeekend(newDate) || holidays.includes(format(newDate, "yyyy-MM-dd"))) {
       newDate = addDays(newDate, 1);
     }
     setCurrentDate(new Date(newDate));
