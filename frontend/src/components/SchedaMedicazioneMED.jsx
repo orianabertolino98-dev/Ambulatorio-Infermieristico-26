@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Copy, FileText, Download } from "lucide-react";
+import { Plus, Copy, FileText, Edit2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -60,9 +60,11 @@ Medicazione: `;
 
 export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedScheda, setSelectedScheda] = useState(null);
-  const [newScheda, setNewScheda] = useState({
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({
     data_compilazione: format(new Date(), "yyyy-MM-dd"),
     fondo: [],
     margini: [],
@@ -74,19 +76,29 @@ export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh
     firma: "",
   });
 
-  const handleToggle = (field, value) => {
-    setNewScheda((prev) => ({
+  const handleToggle = (field, value, isEditMode = false) => {
+    const setter = isEditMode ? setSelectedScheda : setFormData;
+    setter((prev) => ({
       ...prev,
-      [field]: prev[field].includes(value)
+      [field]: prev[field]?.includes(value)
         ? prev[field].filter((v) => v !== value)
-        : [...prev[field], value],
+        : [...(prev[field] || []), value],
     }));
   };
 
-  const handleSingleSelect = (field, value) => {
-    setNewScheda((prev) => ({
+  const handleSingleSelect = (field, value, isEditMode = false) => {
+    const setter = isEditMode ? setSelectedScheda : setFormData;
+    setter((prev) => ({
       ...prev,
       [field]: prev[field] === value ? "" : value,
+    }));
+  };
+
+  const handleFieldChange = (field, value, isEditMode = false) => {
+    const setter = isEditMode ? setSelectedScheda : setFormData;
+    setter((prev) => ({
+      ...prev,
+      [field]: value,
     }));
   };
 
@@ -95,7 +107,7 @@ export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh
       await apiClient.post("/schede-medicazione-med", {
         patient_id: patientId,
         ambulatorio,
-        ...newScheda,
+        ...formData,
       });
       toast.success("Scheda creata");
       setDialogOpen(false);
@@ -106,11 +118,36 @@ export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh
     }
   };
 
+  const handleUpdate = async () => {
+    if (!selectedScheda) return;
+    setSaving(true);
+    try {
+      await apiClient.put(`/schede-medicazione-med/${selectedScheda.id}`, {
+        data_compilazione: selectedScheda.data_compilazione,
+        fondo: selectedScheda.fondo,
+        margini: selectedScheda.margini,
+        cute_perilesionale: selectedScheda.cute_perilesionale,
+        essudato_quantita: selectedScheda.essudato_quantita,
+        essudato_tipo: selectedScheda.essudato_tipo,
+        medicazione: selectedScheda.medicazione,
+        prossimo_cambio: selectedScheda.prossimo_cambio,
+        firma: selectedScheda.firma,
+      });
+      toast.success("Scheda aggiornata");
+      setIsEditing(false);
+      onRefresh();
+    } catch (error) {
+      toast.error("Errore nell'aggiornamento");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleCopyFromPrevious = () => {
     if (schede.length > 0) {
       const lastScheda = schede[0];
-      setNewScheda({
-        ...newScheda,
+      setFormData({
+        ...formData,
         data_compilazione: format(new Date(), "yyyy-MM-dd"),
         fondo: lastScheda.fondo || [],
         margini: lastScheda.margini || [],
@@ -118,13 +155,21 @@ export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh
         essudato_quantita: lastScheda.essudato_quantita || "",
         essudato_tipo: lastScheda.essudato_tipo || [],
         medicazione: lastScheda.medicazione || DEFAULT_MEDICAZIONE,
+        prossimo_cambio: "",
+        firma: lastScheda.firma || "",
       });
       toast.success("Dati copiati dalla scheda precedente");
     }
   };
 
+  const handleOpenView = (scheda) => {
+    setSelectedScheda({ ...scheda });
+    setIsEditing(false);
+    setEditDialogOpen(true);
+  };
+
   const resetForm = () => {
-    setNewScheda({
+    setFormData({
       data_compilazione: format(new Date(), "yyyy-MM-dd"),
       fondo: [],
       margini: [],
@@ -141,7 +186,7 @@ export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh
     <div className="flex flex-wrap gap-2">
       {options.map((opt) => {
         const isSelected = multiple
-          ? selected.includes(opt.id)
+          ? selected?.includes(opt.id)
           : selected === opt.id;
         return (
           <button
@@ -154,6 +199,115 @@ export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh
           </button>
         );
       })}
+    </div>
+  );
+
+  // Render form fields (shared between create and edit)
+  const renderFormFields = (data, isEditMode = false) => (
+    <div className="space-y-6">
+      {/* Header with date and copy button */}
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <Label>Data Compilazione</Label>
+          <Input
+            type="date"
+            value={data.data_compilazione || ""}
+            onChange={(e) => handleFieldChange("data_compilazione", e.target.value, isEditMode)}
+            disabled={!isEditMode && editDialogOpen}
+          />
+        </div>
+        {!editDialogOpen && schede.length > 0 && (
+          <Button variant="outline" onClick={handleCopyFromPrevious}>
+            <Copy className="w-4 h-4 mr-2" />
+            Copia da precedente
+          </Button>
+        )}
+      </div>
+
+      {/* Fondo Lesione */}
+      <div className="form-section">
+        <div className="form-section-title">Fondo Lesione</div>
+        <SelectionChips
+          options={FONDO_OPTIONS}
+          selected={data.fondo}
+          onToggle={(id) => handleToggle("fondo", id, isEditMode)}
+        />
+      </div>
+
+      {/* Margini Lesione */}
+      <div className="form-section">
+        <div className="form-section-title">Margini Lesione</div>
+        <SelectionChips
+          options={MARGINI_OPTIONS}
+          selected={data.margini}
+          onToggle={(id) => handleToggle("margini", id, isEditMode)}
+        />
+      </div>
+
+      {/* Cute Perilesionale */}
+      <div className="form-section">
+        <div className="form-section-title">Cute Perilesionale</div>
+        <SelectionChips
+          options={CUTE_OPTIONS}
+          selected={data.cute_perilesionale}
+          onToggle={(id) => handleToggle("cute_perilesionale", id, isEditMode)}
+        />
+      </div>
+
+      {/* Essudato */}
+      <div className="form-section">
+        <div className="form-section-title">Essudato</div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <Label className="text-sm text-muted-foreground mb-2 block">Quantità</Label>
+            <SelectionChips
+              options={ESSUDATO_QUANTITA}
+              selected={data.essudato_quantita}
+              onToggle={(id) => handleSingleSelect("essudato_quantita", id, isEditMode)}
+              multiple={false}
+            />
+          </div>
+          <div>
+            <Label className="text-sm text-muted-foreground mb-2 block">Tipologia</Label>
+            <SelectionChips
+              options={ESSUDATO_TIPO}
+              selected={data.essudato_tipo}
+              onToggle={(id) => handleToggle("essudato_tipo", id, isEditMode)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Medicazione */}
+      <div className="form-section">
+        <div className="form-section-title">Medicazione Praticata</div>
+        <Textarea
+          value={data.medicazione || ""}
+          onChange={(e) => handleFieldChange("medicazione", e.target.value, isEditMode)}
+          rows={5}
+          className="font-mono text-sm"
+        />
+      </div>
+
+      {/* Footer */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Prossimo Cambio</Label>
+          <Input
+            type="date"
+            value={data.prossimo_cambio || ""}
+            onChange={(e) => handleFieldChange("prossimo_cambio", e.target.value, isEditMode)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Firma Operatore</Label>
+          <Input
+            value={data.firma || ""}
+            onChange={(e) => handleFieldChange("firma", e.target.value, isEditMode)}
+            placeholder="Nome operatore"
+          />
+        </div>
+      </div>
     </div>
   );
 
@@ -187,10 +341,7 @@ export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh
             <Card
               key={scheda.id}
               className="cursor-pointer hover:border-primary/50 transition-colors"
-              onClick={() => {
-                setSelectedScheda(scheda);
-                setViewDialogOpen(true);
-              }}
+              onClick={() => handleOpenView(scheda)}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -202,11 +353,10 @@ export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      // Download functionality would go here
-                      toast.info("Funzione download in sviluppo");
+                      handleOpenView(scheda);
                     }}
                   >
-                    <Download className="w-4 h-4" />
+                    <Edit2 className="w-4 h-4" />
                   </Button>
                 </div>
               </CardHeader>
@@ -240,118 +390,7 @@ export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh
           </DialogHeader>
 
           <ScrollArea className="max-h-[60vh] pr-4">
-            <div className="space-y-6">
-              {/* Header with date and copy button */}
-              <div className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <Label>Data Compilazione</Label>
-                  <Input
-                    type="date"
-                    value={newScheda.data_compilazione}
-                    onChange={(e) =>
-                      setNewScheda({ ...newScheda, data_compilazione: e.target.value })
-                    }
-                  />
-                </div>
-                {schede.length > 0 && (
-                  <Button variant="outline" onClick={handleCopyFromPrevious}>
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copia da precedente
-                  </Button>
-                )}
-              </div>
-
-              {/* Fondo Lesione */}
-              <div className="form-section">
-                <div className="form-section-title">Fondo Lesione</div>
-                <SelectionChips
-                  options={FONDO_OPTIONS}
-                  selected={newScheda.fondo}
-                  onToggle={(id) => handleToggle("fondo", id)}
-                />
-              </div>
-
-              {/* Margini Lesione */}
-              <div className="form-section">
-                <div className="form-section-title">Margini Lesione</div>
-                <SelectionChips
-                  options={MARGINI_OPTIONS}
-                  selected={newScheda.margini}
-                  onToggle={(id) => handleToggle("margini", id)}
-                />
-              </div>
-
-              {/* Cute Perilesionale */}
-              <div className="form-section">
-                <div className="form-section-title">Cute Perilesionale</div>
-                <SelectionChips
-                  options={CUTE_OPTIONS}
-                  selected={newScheda.cute_perilesionale}
-                  onToggle={(id) => handleToggle("cute_perilesionale", id)}
-                />
-              </div>
-
-              {/* Essudato */}
-              <div className="form-section">
-                <div className="form-section-title">Essudato</div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <Label className="text-sm text-muted-foreground mb-2 block">Quantità</Label>
-                    <SelectionChips
-                      options={ESSUDATO_QUANTITA}
-                      selected={newScheda.essudato_quantita}
-                      onToggle={(id) => handleSingleSelect("essudato_quantita", id)}
-                      multiple={false}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm text-muted-foreground mb-2 block">Tipologia</Label>
-                    <SelectionChips
-                      options={ESSUDATO_TIPO}
-                      selected={newScheda.essudato_tipo}
-                      onToggle={(id) => handleToggle("essudato_tipo", id)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Medicazione */}
-              <div className="form-section">
-                <div className="form-section-title">Medicazione Praticata</div>
-                <Textarea
-                  value={newScheda.medicazione}
-                  onChange={(e) =>
-                    setNewScheda({ ...newScheda, medicazione: e.target.value })
-                  }
-                  rows={5}
-                  className="font-mono text-sm"
-                />
-              </div>
-
-              {/* Footer */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Prossimo Cambio</Label>
-                  <Input
-                    type="date"
-                    value={newScheda.prossimo_cambio}
-                    onChange={(e) =>
-                      setNewScheda({ ...newScheda, prossimo_cambio: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Firma Operatore</Label>
-                  <Input
-                    value={newScheda.firma}
-                    onChange={(e) =>
-                      setNewScheda({ ...newScheda, firma: e.target.value })
-                    }
-                    placeholder="Nome operatore"
-                  />
-                </div>
-              </div>
-            </div>
+            {renderFormFields(formData, false)}
           </ScrollArea>
 
           <div className="flex justify-end gap-2 pt-4 border-t">
@@ -365,57 +404,96 @@ export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh
         </DialogContent>
       </Dialog>
 
-      {/* View Dialog */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
+      {/* View/Edit Dialog - ALWAYS EDITABLE */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>
-              Scheda del {selectedScheda && format(new Date(selectedScheda.data_compilazione), "d MMMM yyyy", { locale: it })}
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>
+                Scheda del {selectedScheda && format(new Date(selectedScheda.data_compilazione), "d MMMM yyyy", { locale: it })}
+              </DialogTitle>
+              {!isEditing && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <Edit2 className="w-4 h-4 mr-2" />
+                  Modifica
+                </Button>
+              )}
+            </div>
+            <DialogDescription>
+              {isEditing 
+                ? "Modifica i campi della scheda e salva le modifiche" 
+                : "Clicca su 'Modifica' per modificare questa scheda"}
+            </DialogDescription>
           </DialogHeader>
 
           {selectedScheda && (
-            <ScrollArea className="max-h-[60vh]">
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-muted-foreground">Fondo Lesione</Label>
-                  <p>{selectedScheda.fondo?.join(", ") || "-"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Margini Lesione</Label>
-                  <p>{selectedScheda.margini?.join(", ") || "-"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Cute Perilesionale</Label>
-                  <p>{selectedScheda.cute_perilesionale?.join(", ") || "-"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Essudato</Label>
-                  <p>
-                    Quantità: {selectedScheda.essudato_quantita || "-"} | 
-                    Tipo: {selectedScheda.essudato_tipo?.join(", ") || "-"}
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Medicazione Praticata</Label>
-                  <p className="whitespace-pre-wrap">{selectedScheda.medicazione || "-"}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Prossimo Cambio</Label>
-                    <p>
-                      {selectedScheda.prossimo_cambio
-                        ? format(new Date(selectedScheda.prossimo_cambio), "d MMM yyyy", { locale: it })
-                        : "-"}
-                    </p>
+            <>
+              <ScrollArea className="max-h-[60vh] pr-4">
+                {isEditing ? (
+                  renderFormFields(selectedScheda, true)
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-muted-foreground">Data Compilazione</Label>
+                      <p>{format(new Date(selectedScheda.data_compilazione), "d MMMM yyyy", { locale: it })}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Fondo Lesione</Label>
+                      <p>{selectedScheda.fondo?.join(", ") || "-"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Margini Lesione</Label>
+                      <p>{selectedScheda.margini?.join(", ") || "-"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Cute Perilesionale</Label>
+                      <p>{selectedScheda.cute_perilesionale?.join(", ") || "-"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Essudato</Label>
+                      <p>
+                        Quantità: {selectedScheda.essudato_quantita || "-"} | 
+                        Tipo: {selectedScheda.essudato_tipo?.join(", ") || "-"}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Medicazione Praticata</Label>
+                      <p className="whitespace-pre-wrap">{selectedScheda.medicazione || "-"}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-muted-foreground">Prossimo Cambio</Label>
+                        <p>
+                          {selectedScheda.prossimo_cambio
+                            ? format(new Date(selectedScheda.prossimo_cambio), "d MMM yyyy", { locale: it })
+                            : "-"}
+                        </p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Firma</Label>
+                        <p>{selectedScheda.firma || "-"}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Firma</Label>
-                    <p>{selectedScheda.firma || "-"}</p>
-                  </div>
+                )}
+              </ScrollArea>
+
+              {isEditing && (
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                  <Button variant="outline" onClick={() => setIsEditing(false)}>
+                    Annulla
+                  </Button>
+                  <Button onClick={handleUpdate} disabled={saving}>
+                    <Save className="w-4 h-4 mr-2" />
+                    {saving ? "Salvataggio..." : "Salva Modifiche"}
+                  </Button>
                 </div>
-              </div>
-            </ScrollArea>
+              )}
+            </>
           )}
         </DialogContent>
       </Dialog>
