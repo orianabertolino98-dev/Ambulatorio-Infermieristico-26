@@ -11,7 +11,7 @@ from datetime import datetime, date
 from typing import Dict, List, Optional
 
 class AmbulatorioAPITester:
-    def __init__(self, base_url="https://medhub-38.preview.emergentagent.com"):
+    def __init__(self, base_url="https://clinic-assist-18.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.token = None
