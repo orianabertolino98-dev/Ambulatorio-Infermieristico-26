@@ -58,6 +58,28 @@ Detersione con Prontosan
 Debridement e Riattivazione dei margini
 Medicazione: `;
 
+// Selection chips component - extracted to avoid render-time definition
+const SelectionChips = ({ options, selected, onToggle, multiple = true }) => (
+  <div className="flex flex-wrap gap-2">
+    {options.map((opt) => {
+      const isSelected = multiple
+        ? selected?.includes(opt.id)
+        : selected === opt.id;
+      return (
+        <button
+          key={opt.id}
+          type="button"
+          onClick={() => onToggle(opt.id)}
+          className={`selection-chip ${isSelected ? "selected" : ""}`}
+        >
+          {opt.label}
+        </button>
+      );
+    })}
+  </div>
+);
+
+
 export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
