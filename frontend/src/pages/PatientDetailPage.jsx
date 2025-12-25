@@ -148,6 +148,7 @@ export default function PatientDetailPage() {
   };
 
   const handleStatusChange = async () => {
+    // Validation only for dimesso and sospeso
     if (statusAction === "dimesso" && !statusReason) {
       toast.error("Seleziona una motivazione");
       return;
@@ -169,11 +170,23 @@ export default function PatientDetailPage() {
       } else if (statusAction === "sospeso") {
         updateData.suspend_notes = statusNotes;
       }
+      // For in_cura, we just update status - history is preserved
 
       await apiClient.put(`/patients/${patientId}`, updateData);
-      toast.success(`Paziente ${statusAction === "dimesso" ? "dimesso" : "sospeso"}`);
+      
+      const messages = {
+        in_cura: "Paziente ripreso in cura",
+        dimesso: "Paziente dimesso",
+        sospeso: "Paziente sospeso",
+      };
+      toast.success(messages[statusAction]);
       setStatusDialogOpen(false);
-      navigate("/pazienti");
+      
+      if (statusAction !== "in_cura") {
+        navigate("/pazienti");
+      } else {
+        fetchPatient(); // Refresh patient data
+      }
     } catch (error) {
       toast.error("Errore nel cambio stato");
     }
