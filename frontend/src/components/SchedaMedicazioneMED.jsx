@@ -204,26 +204,6 @@ export const SchedaMedicazioneMED = ({ patientId, ambulatorio, schede, onRefresh
     });
   };
 
-  const SelectionChips = ({ options, selected, onToggle, multiple = true }) => (
-    <div className="flex flex-wrap gap-2">
-      {options.map((opt) => {
-        const isSelected = multiple
-          ? selected?.includes(opt.id)
-          : selected === opt.id;
-        return (
-          <button
-            key={opt.id}
-            type="button"
-            onClick={() => onToggle(opt.id)}
-            className={`selection-chip ${isSelected ? "selected" : ""}`}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-
   // Render form fields (shared between create and edit)
   const renderFormFields = (data, isEditMode = false) => (
     <div className="space-y-6">
