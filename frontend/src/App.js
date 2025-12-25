@@ -199,8 +199,8 @@ function AppContent() {
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <Toaster position="top-right" richColors closeButton />
         </BrowserRouter>
-        <Toaster position="top-right" richColors />
       </AmbulatorioContext.Provider>
     </AuthContext.Provider>
   );
