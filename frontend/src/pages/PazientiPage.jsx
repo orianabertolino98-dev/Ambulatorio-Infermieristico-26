@@ -502,7 +502,7 @@ export default function PazientiPage() {
             {newStatus === "in_cura" && (
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-sm text-green-800">
-                  Il paziente verrà riportato in stato "In Cura". Lo storico delle dimissioni/sospensioni precedenti verrà conservato.
+                  Il paziente verrà riportato in stato &quot;In Cura&quot;. Lo storico delle dimissioni/sospensioni precedenti verrà conservato.
                 </p>
               </div>
             )}

@@ -589,7 +589,7 @@ export default function PatientDetailPage() {
             {statusAction === "in_cura" && (
               <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                 <p className="text-sm text-green-800">
-                  Confermando, il paziente tornerà visibile nella lista "In Cura" e sarà possibile gestire nuovamente appuntamenti e schede.
+                  Confermando, il paziente tornerà visibile nella lista &quot;In Cura&quot; e sarà possibile gestire nuovamente appuntamenti e schede.
                 </p>
               </div>
             )}
