@@ -31,6 +31,7 @@ import {
   Save,
   UserMinus,
   UserX,
+  UserPlus,
   Plus,
   Trash2,
   Copy,
