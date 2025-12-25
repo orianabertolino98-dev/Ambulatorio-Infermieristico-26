@@ -55,9 +55,18 @@ const PRESTAZIONI_MED = [
   { id: "catetere_vescicale", label: "Catetere vescicale", icon: Droplets },
 ];
 
+// Get next working day
+const getNextWorkingDay = (date) => {
+  let d = new Date(date);
+  while (isWeekend(d)) {
+    d = addDays(d, 1);
+  }
+  return d;
+};
+
 export default function AgendaPage() {
   const { ambulatorio } = useAmbulatorio();
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(() => getNextWorkingDay(new Date()));
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients] = useState([]);
   const [holidays, setHolidays] = useState([]);
