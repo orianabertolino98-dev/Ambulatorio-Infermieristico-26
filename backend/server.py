@@ -418,7 +418,7 @@ async def get_current_user(payload: dict = Depends(verify_token)):
     )
 
 # ============== PATIENTS ROUTES ==============
-@api_router.post("/patients", response_model=Patient)
+@api_router.post("/patients", response_model=Patient, status_code=201)
 async def create_patient(data: PatientCreate, payload: dict = Depends(verify_token)):
     # Check ambulatorio access
     if data.ambulatorio.value not in payload["ambulatori"]:
