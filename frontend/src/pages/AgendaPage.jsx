@@ -140,7 +140,7 @@ export default function AgendaPage() {
     while (isWeekend(newDate)) {
       newDate = addDays(newDate, 1);
     }
-    setCurrentDate(newDate);
+    setCurrentDate(new Date(newDate));
   };
 
   const isHoliday = (date) => {
