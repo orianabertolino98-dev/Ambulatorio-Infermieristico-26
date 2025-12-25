@@ -572,16 +572,28 @@ export default function PatientDetailPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {statusAction === "dimesso" ? "Dimetti Paziente" : "Sospendi Paziente"}
+              {statusAction === "in_cura" && "Riprendi Paziente in Cura"}
+              {statusAction === "dimesso" && "Dimetti Paziente"}
+              {statusAction === "sospeso" && "Sospendi Paziente"}
             </DialogTitle>
             <DialogDescription>
-              {statusAction === "dimesso"
+              {statusAction === "in_cura"
+                ? "Il paziente verrà riportato in stato 'In Cura'. Lo storico sarà conservato."
+                : statusAction === "dimesso"
                 ? "Seleziona la motivazione della dimissione"
                 : "Inserisci una nota per la sospensione temporanea"}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
+            {statusAction === "in_cura" && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800">
+                  Confermando, il paziente tornerà visibile nella lista "In Cura" e sarà possibile gestire nuovamente appuntamenti e schede.
+                </p>
+              </div>
+            )}
+
             {statusAction === "dimesso" && (
               <div className="space-y-2">
                 <Label>Motivazione *</Label>
@@ -598,27 +610,32 @@ export default function PatientDetailPage() {
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label>
-                Note {statusAction === "sospeso" || statusReason === "altro" ? "*" : ""}
-              </Label>
-              <Textarea
-                value={statusNotes}
-                onChange={(e) => setStatusNotes(e.target.value)}
-                placeholder={
-                  statusAction === "sospeso"
-                    ? "Es: Ricovero ospedaliero"
-                    : "Inserisci note aggiuntive..."
-                }
-                rows={3}
-              />
-            </div>
+            {statusAction !== "in_cura" && (
+              <div className="space-y-2">
+                <Label>
+                  Note {statusAction === "sospeso" || statusReason === "altro" ? "*" : ""}
+                </Label>
+                <Textarea
+                  value={statusNotes}
+                  onChange={(e) => setStatusNotes(e.target.value)}
+                  placeholder={
+                    statusAction === "sospeso"
+                      ? "Es: Ricovero ospedaliero"
+                      : "Inserisci note aggiuntive..."
+                  }
+                  rows={3}
+                />
+              </div>
+            )}
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>
                 Annulla
               </Button>
-              <Button onClick={handleStatusChange}>
+              <Button 
+                onClick={handleStatusChange}
+                className={statusAction === "in_cura" ? "bg-green-600 hover:bg-green-700" : ""}
+              >
                 Conferma
               </Button>
             </div>
