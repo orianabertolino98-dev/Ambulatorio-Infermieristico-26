@@ -127,13 +127,13 @@ export default function AgendaPage() {
     }
   }, [searchQuery, patients, selectedSlot]);
 
-  const goToToday = () => setCurrentDate(new Date());
+  const goToToday = () => setCurrentDate(getNextWorkingDay(new Date()));
   const goToPrevDay = () => {
     let newDate = subDays(currentDate, 1);
     while (isWeekend(newDate)) {
       newDate = subDays(newDate, 1);
     }
-    setCurrentDate(newDate);
+    setCurrentDate(new Date(newDate));
   };
   const goToNextDay = () => {
     let newDate = addDays(currentDate, 1);
