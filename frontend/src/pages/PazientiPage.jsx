@@ -27,6 +27,16 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -37,9 +47,10 @@ import {
   UserX,
   ChevronRight,
   MoreVertical,
-  UserPlus,
   Pause,
   Play,
+  Trash2,
+  Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -57,9 +68,12 @@ export default function PazientiPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("in_cura");
+  const [typeFilter, setTypeFilter] = useState("all"); // "all", "PICC", "MED", "PICC_MED"
   const [dialogOpen, setDialogOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPatientForStatus, setSelectedPatientForStatus] = useState(null);
+  const [selectedPatientForDelete, setSelectedPatientForDelete] = useState(null);
   const [newStatus, setNewStatus] = useState("");
   const [statusReason, setStatusReason] = useState("");
   const [statusNotes, setStatusNotes] = useState("");
@@ -99,11 +113,22 @@ export default function PazientiPage() {
     fetchAllPatients();
   }, [fetchAllPatients]);
 
-  // Filter patients based on active tab and search
+  // Filter patients based on active tab, search, and type filter
   const filteredPatients = allPatients[activeTab]?.filter(p => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return p.nome?.toLowerCase().includes(query) || p.cognome?.toLowerCase().includes(query);
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      if (!p.nome?.toLowerCase().includes(query) && !p.cognome?.toLowerCase().includes(query)) {
+        return false;
+      }
+    }
+    // Type filter
+    if (typeFilter !== "all") {
+      if (typeFilter === "PICC" && p.tipo !== "PICC" && p.tipo !== "PICC_MED") return false;
+      if (typeFilter === "MED" && p.tipo !== "MED" && p.tipo !== "PICC_MED") return false;
+      if (typeFilter === "PICC_MED" && p.tipo !== "PICC_MED") return false;
+    }
+    return true;
   }) || [];
 
   // Get counts for badges
@@ -111,6 +136,8 @@ export default function PazientiPage() {
     in_cura: allPatients.in_cura?.length || 0,
     dimesso: allPatients.dimesso?.length || 0,
     sospeso: allPatients.sospeso?.length || 0,
+    picc_in_cura: allPatients.in_cura?.filter(p => p.tipo === "PICC" || p.tipo === "PICC_MED").length || 0,
+    med_in_cura: allPatients.in_cura?.filter(p => p.tipo === "MED" || p.tipo === "PICC_MED").length || 0,
   });
 
   const counts = getCounts();
@@ -145,6 +172,12 @@ export default function PazientiPage() {
     setStatusDialogOpen(true);
   };
 
+  const openDeleteDialog = (patient, e) => {
+    e.stopPropagation();
+    setSelectedPatientForDelete(patient);
+    setDeleteDialogOpen(true);
+  };
+
   const handleStatusChange = async () => {
     if (!selectedPatientForStatus) return;
     
@@ -171,7 +204,6 @@ export default function PazientiPage() {
       } else if (newStatus === "sospeso") {
         updateData.suspend_notes = statusNotes;
       }
-      // When reactivating (in_cura), we keep the history in discharge/suspend fields
 
       await apiClient.put(`/patients/${selectedPatientForStatus.id}`, updateData);
       
@@ -186,6 +218,20 @@ export default function PazientiPage() {
       fetchAllPatients();
     } catch (error) {
       toast.error("Errore nel cambio stato");
+    }
+  };
+
+  const handleDeletePatient = async () => {
+    if (!selectedPatientForDelete) return;
+    
+    try {
+      await apiClient.delete(`/patients/${selectedPatientForDelete.id}`);
+      toast.success("Paziente eliminato definitivamente");
+      setDeleteDialogOpen(false);
+      setSelectedPatientForDelete(null);
+      fetchAllPatients();
+    } catch (error) {
+      toast.error("Errore nell'eliminazione del paziente");
     }
   };
 
@@ -249,31 +295,27 @@ export default function PazientiPage() {
 
       {/* Patient Counters */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {!isVillaGinestre && (
-          <Card className="border-blue-200 bg-blue-50/50">
-            <CardContent className="pt-4 pb-3 px-4">
-              <div className="text-2xl font-bold text-blue-600">
-                {allPatients.in_cura?.filter(p => p.tipo === "MED").length || 0}
-              </div>
-              <p className="text-sm text-blue-600/80 font-medium">MED in cura</p>
-            </CardContent>
-          </Card>
-        )}
-        <Card className="border-emerald-200 bg-emerald-50/50">
+        <Card 
+          className={`border-emerald-200 cursor-pointer transition-all ${typeFilter === "PICC" ? "bg-emerald-100 ring-2 ring-emerald-500" : "bg-emerald-50/50 hover:bg-emerald-100/50"}`}
+          onClick={() => setTypeFilter(typeFilter === "PICC" ? "all" : "PICC")}
+        >
           <CardContent className="pt-4 pb-3 px-4">
             <div className="text-2xl font-bold text-emerald-600">
-              {allPatients.in_cura?.filter(p => p.tipo === "PICC").length || 0}
+              {counts.picc_in_cura}
             </div>
             <p className="text-sm text-emerald-600/80 font-medium">PICC in cura</p>
           </CardContent>
         </Card>
         {!isVillaGinestre && (
-          <Card className="border-purple-200 bg-purple-50/50">
+          <Card 
+            className={`border-blue-200 cursor-pointer transition-all ${typeFilter === "MED" ? "bg-blue-100 ring-2 ring-blue-500" : "bg-blue-50/50 hover:bg-blue-100/50"}`}
+            onClick={() => setTypeFilter(typeFilter === "MED" ? "all" : "MED")}
+          >
             <CardContent className="pt-4 pb-3 px-4">
-              <div className="text-2xl font-bold text-purple-600">
-                {allPatients.in_cura?.filter(p => p.tipo === "PICC_MED").length || 0}
+              <div className="text-2xl font-bold text-blue-600">
+                {counts.med_in_cura}
               </div>
-              <p className="text-sm text-purple-600/80 font-medium">PICC+MED in cura</p>
+              <p className="text-sm text-blue-600/80 font-medium">MED in cura</p>
             </CardContent>
           </Card>
         )}
@@ -283,18 +325,40 @@ export default function PazientiPage() {
             <p className="text-sm text-green-600/80 font-medium">Totale in cura</p>
           </CardContent>
         </Card>
+        <Card className="border-gray-200 bg-gray-50/50">
+          <CardContent className="pt-4 pb-3 px-4">
+            <div className="text-2xl font-bold text-gray-600">{counts.dimesso + counts.sospeso}</div>
+            <p className="text-sm text-gray-600/80 font-medium">Dimessi/Sospesi</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          data-testid="patient-search-input"
-          placeholder="Cerca per nome o cognome..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10 max-w-md"
-        />
+      {/* Search and Filter */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            data-testid="patient-search-input"
+            placeholder="Cerca per nome o cognome..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        {!isVillaGinestre && (
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-[180px]">
+              <Filter className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Filtra per tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i tipi</SelectItem>
+              <SelectItem value="PICC">Solo PICC</SelectItem>
+              <SelectItem value="MED">Solo MED</SelectItem>
+              <SelectItem value="PICC_MED">Solo PICC+MED</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Tabs */}
@@ -326,8 +390,12 @@ export default function PazientiPage() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Users className="w-12 h-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">Nessun paziente trovato</p>
-                {activeTab === "in_cura" && (
+                <p className="text-muted-foreground">
+                  {typeFilter !== "all" 
+                    ? `Nessun paziente ${typeFilter} trovato` 
+                    : "Nessun paziente trovato"}
+                </p>
+                {activeTab === "in_cura" && typeFilter === "all" && (
                   <Button
                     variant="link"
                     onClick={() => setDialogOpen(true)}
@@ -375,7 +443,7 @@ export default function PazientiPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {getStatusActions(patient).map((action, idx) => (
+                      {getStatusActions(patient).map((action) => (
                         <DropdownMenuItem
                           key={action.status}
                           onClick={(e) => openStatusDialog(patient, action.status, e)}
@@ -394,6 +462,14 @@ export default function PazientiPage() {
                       >
                         <ChevronRight className="w-4 h-4 mr-2" />
                         Apri Cartella
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={(e) => openDeleteDialog(patient, e)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Elimina Definitivamente
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -564,6 +640,33 @@ export default function PazientiPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare questo paziente?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedPatientForDelete && (
+                <>
+                  Stai per eliminare definitivamente <strong>{selectedPatientForDelete.cognome} {selectedPatientForDelete.nome}</strong>.
+                  <br /><br />
+                  Questa azione non può essere annullata. Tutti i dati del paziente (cartella clinica, schede medicazione, foto) verranno eliminati permanentemente.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeletePatient} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Elimina Definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
