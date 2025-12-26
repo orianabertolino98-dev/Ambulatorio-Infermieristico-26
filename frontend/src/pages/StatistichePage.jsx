@@ -471,18 +471,21 @@ export default function StatistichePage() {
       </Card>
 
       {/* Type Tabs */}
-      {!isVillaGinestre && (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-          <TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+        <TabsList>
+          {!isVillaGinestre && (
             <TabsTrigger value="MED" data-testid="stats-tab-med">
               Statistiche MED
             </TabsTrigger>
-            <TabsTrigger value="PICC" data-testid="stats-tab-picc">
-              Statistiche PICC
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      )}
+          )}
+          <TabsTrigger value="PICC" data-testid="stats-tab-picc">
+            Statistiche PICC
+          </TabsTrigger>
+          <TabsTrigger value="IMPIANTI" data-testid="stats-tab-impianti">
+            Statistiche Impianti
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
