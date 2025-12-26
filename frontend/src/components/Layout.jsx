@@ -21,7 +21,6 @@ import {
   Building2,
   ChevronDown,
   Stethoscope,
-  User,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -59,7 +58,8 @@ export const Layout = () => {
     navigate("/login");
   };
 
-  const NavContent = ({ mobile = false }) => (
+  // Render navigation items
+  const renderNavItems = (mobile = false) => (
     <>
       {NAV_ITEMS.map((item) => (
         <NavLink
@@ -77,8 +77,8 @@ export const Layout = () => {
     </>
   );
 
-  // Top Right User/Ambulatorio Menu Component
-  const TopRightMenu = ({ isMobile = false }) => (
+  // Render top right menu
+  const renderTopRightMenu = (isMobile = false) => (
     <div className="flex items-center gap-2">
       {/* Ambulatorio Selector */}
       {user?.ambulatori?.length > 1 && (
@@ -174,7 +174,7 @@ export const Layout = () => {
         </div>
 
         <nav className="sidebar-nav">
-          <NavContent />
+          {renderNavItems(false)}
         </nav>
 
         {/* Desktop: Simple footer with just app info */}
@@ -188,7 +188,7 @@ export const Layout = () => {
       {/* Desktop Top Bar with User Menu - RIGHT ALIGNED */}
       <header className="fixed top-0 right-0 left-64 z-40 h-16 bg-background/95 backdrop-blur border-b hide-mobile">
         <div className="h-full px-6 flex items-center justify-end">
-          <TopRightMenu />
+          {renderTopRightMenu(false)}
         </div>
       </header>
 
@@ -214,7 +214,7 @@ export const Layout = () => {
                 </div>
               </div>
               <nav className="p-4">
-                <NavContent mobile />
+                {renderNavItems(true)}
               </nav>
             </SheetContent>
           </Sheet>
@@ -225,7 +225,7 @@ export const Layout = () => {
         </div>
 
         {/* Mobile: Top Right Menu */}
-        <TopRightMenu isMobile />
+        {renderTopRightMenu(true)}
       </header>
 
       {/* Main Content - adjusted for top bar */}
