@@ -21,8 +21,14 @@ import {
   Building2,
   ChevronDown,
   Stethoscope,
+  Settings,
+  Maximize,
+  Minimize,
+  RotateCw,
+  Monitor,
+  Smartphone,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const NAV_ITEMS = [
   { path: "/dashboard", label: "Home", icon: Home },
@@ -47,6 +53,35 @@ export const Layout = () => {
   const { ambulatorio, selectAmbulatorio } = useAmbulatorio();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [orientation, setOrientation] = useState("auto"); // "auto", "landscape", "portrait"
+
+  // Check fullscreen state
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
+  // Handle orientation change via CSS
+  useEffect(() => {
+    const root = document.documentElement;
+    if (orientation === "landscape") {
+      root.style.setProperty("--app-rotation", "0deg");
+      root.classList.remove("portrait-mode");
+      root.classList.add("landscape-mode");
+    } else if (orientation === "portrait") {
+      root.classList.remove("landscape-mode");
+      root.classList.add("portrait-mode");
+    } else {
+      root.classList.remove("landscape-mode", "portrait-mode");
+    }
+    return () => {
+      root.classList.remove("landscape-mode", "portrait-mode");
+    };
+  }, [orientation]);
 
   const handleAmbulatorioChange = (amb) => {
     selectAmbulatorio(amb);
@@ -56,6 +91,30 @@ export const Layout = () => {
   const handleLogout = () => {
     logout();
     navigate("/login");
+  };
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.error("Fullscreen error:", err);
+    }
+  };
+
+  const cycleOrientation = () => {
+    if (orientation === "auto") {
+      setOrientation("landscape");
+    } else if (orientation === "landscape") {
+      setOrientation("portrait");
+    } else {
+      setOrientation("auto");
+    }
   };
 
   // Render navigation items
@@ -77,9 +136,57 @@ export const Layout = () => {
     </>
   );
 
+  // Settings Menu Component
+  const renderSettingsMenu = () => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-9 w-9">
+          <Settings className="w-5 h-5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>Impostazioni Display</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={toggleFullscreen}>
+          {isFullscreen ? (
+            <>
+              <Minimize className="w-4 h-4 mr-2" />
+              Esci da Schermo Intero
+            </>
+          ) : (
+            <>
+              <Maximize className="w-4 h-4 mr-2" />
+              Schermo Intero
+            </>
+          )}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs text-muted-foreground">Orientamento</DropdownMenuLabel>
+        <DropdownMenuItem onClick={() => setOrientation("auto")} className={orientation === "auto" ? "bg-primary/10" : ""}>
+          <RotateCw className="w-4 h-4 mr-2" />
+          Auto
+          {orientation === "auto" && <span className="ml-auto">✓</span>}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setOrientation("landscape")} className={orientation === "landscape" ? "bg-primary/10" : ""}>
+          <Monitor className="w-4 h-4 mr-2" />
+          Orizzontale
+          {orientation === "landscape" && <span className="ml-auto">✓</span>}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setOrientation("portrait")} className={orientation === "portrait" ? "bg-primary/10" : ""}>
+          <Smartphone className="w-4 h-4 mr-2" />
+          Verticale
+          {orientation === "portrait" && <span className="ml-auto">✓</span>}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   // Render top right menu
   const renderTopRightMenu = (isMobile = false) => (
     <div className="flex items-center gap-2">
+      {/* Settings Button */}
+      {renderSettingsMenu()}
+
       {/* Ambulatorio Selector */}
       {user?.ambulatori?.length > 1 && (
         <DropdownMenu>
