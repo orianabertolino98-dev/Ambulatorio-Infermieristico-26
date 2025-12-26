@@ -629,25 +629,29 @@ export default function StatistichePage() {
               value={stats?.totale_accessi}
               compareValue={compareStats?.totale_accessi}
               icon={Calendar}
+              compareMode={compareMode}
+              compareStats={compareStats}
             />
-        <StatCard
-          title="Pazienti Unici"
-          value={stats?.pazienti_unici}
-          compareValue={compareStats?.pazienti_unici}
-          icon={Users}
-        />
-      </div>
+            <StatCard
+              title="Pazienti Unici"
+              value={stats?.pazienti_unici}
+              compareValue={compareStats?.pazienti_unici}
+              icon={Users}
+              compareMode={compareMode}
+              compareStats={compareStats}
+            />
+          </div>
 
-      {/* Prestazioni Detail */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Dettaglio Prestazioni</CardTitle>
-          <CardDescription>
-            Conteggio delle prestazioni per tipologia
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {stats?.prestazioni && Object.keys(stats.prestazioni).length > 0 ? (
+          {/* Prestazioni Detail */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Dettaglio Prestazioni</CardTitle>
+              <CardDescription>
+                Conteggio delle prestazioni per tipologia
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {stats?.prestazioni && Object.keys(stats.prestazioni).length > 0 ? (
             <div className="space-y-4">
               {Object.entries(stats.prestazioni).map(([key, value]) => {
                 const prestInfo = PRESTAZIONI_LABELS[key] || { label: key, icon: Bandage };
