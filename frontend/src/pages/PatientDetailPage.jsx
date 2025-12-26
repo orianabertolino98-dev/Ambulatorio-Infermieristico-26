@@ -551,6 +551,7 @@ export default function PatientDetailPage() {
               ambulatorio={ambulatorio}
               schede={schedeGestionePICC}
               onRefresh={fetchMedicalRecords}
+              patientInfo={patient}
             />
           </TabsContent>
         )}
