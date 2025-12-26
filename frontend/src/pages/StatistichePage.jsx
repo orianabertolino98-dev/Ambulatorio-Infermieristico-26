@@ -750,7 +750,7 @@ export default function StatistichePage() {
       )}
 
       {/* Compare Info */}
-      {compareMode && compareStats && (
+      {compareMode && compareStats && activeTab !== "IMPIANTI" && (
         <Card className="mt-6 border-primary/50">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
