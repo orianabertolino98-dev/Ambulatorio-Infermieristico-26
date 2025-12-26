@@ -459,3 +459,77 @@
         padding-top: 5rem;
     }
 }
+
+/* Fullscreen mode */
+:fullscreen {
+    background: white;
+}
+
+:fullscreen .sidebar {
+    display: none !important;
+}
+
+:fullscreen .with-sidebar {
+    margin-left: 0 !important;
+}
+
+:fullscreen .hide-mobile {
+    left: 0 !important;
+}
+
+/* Portrait mode simulation */
+.portrait-mode .main-content {
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.portrait-mode .sidebar {
+    display: none !important;
+}
+
+.portrait-mode .with-sidebar {
+    margin-left: 0 !important;
+}
+
+/* Better scrolling for dialogs */
+[role="dialog"] {
+    overflow: visible !important;
+}
+
+/* Ensure dropdown menus appear on top */
+[data-radix-popper-content-wrapper] {
+    z-index: 9999 !important;
+}
+
+/* Fix for table cells in PICC sheet */
+.sticky {
+    position: sticky !important;
+}
+
+/* Enhanced scroll containers */
+.overflow-auto {
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Custom scrollbar styling */
+.overflow-auto::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.overflow-auto::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 5px;
+}
+
+.overflow-auto::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 5px;
+}
+
+.overflow-auto::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
