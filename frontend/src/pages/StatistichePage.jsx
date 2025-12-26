@@ -356,57 +356,6 @@ export default function StatistichePage() {
     toast.success("Report PDF aperto per la stampa");
   };
 
-  const getDiff = (current, previous) => {
-    if (!previous) return null;
-    return current - previous;
-  };
-
-  const DiffBadge = ({ diff }) => {
-    if (diff === null || diff === undefined) return null;
-    if (diff === 0) {
-      return (
-        <span className="stat-change flex items-center gap-1">
-          <Minus className="w-3 h-3" />
-          Invariato
-        </span>
-      );
-    }
-    if (diff > 0) {
-      return (
-        <span className="stat-change positive flex items-center gap-1">
-          <TrendingUp className="w-3 h-3" />
-          +{diff}
-        </span>
-      );
-    }
-    return (
-      <span className="stat-change negative flex items-center gap-1">
-        <TrendingDown className="w-3 h-3" />
-        {diff}
-      </span>
-    );
-  };
-
-  const StatCard = ({ title, value, compareValue, icon: Icon }) => {
-    const diff = compareMode && compareStats ? getDiff(value, compareValue) : null;
-    return (
-      <Card className="stat-card">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="stat-value">{value || 0}</p>
-            <p className="stat-label">{title}</p>
-            {compareMode && <DiffBadge diff={diff} />}
-          </div>
-          {Icon && (
-            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-              <Icon className="w-5 h-5 text-primary" />
-            </div>
-          )}
-        </div>
-      </Card>
-    );
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
