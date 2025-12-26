@@ -782,6 +782,8 @@ export default function StatistichePage() {
           </CardContent>
         </Card>
       )}
+        </>
+      )}
     </div>
   );
 }
