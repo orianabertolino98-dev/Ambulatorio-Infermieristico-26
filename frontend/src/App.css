@@ -451,6 +451,11 @@
     }
     
     .with-sidebar {
-        margin-left: 280px;
+        margin-left: 256px;
+    }
+    
+    /* Adjust for top header on desktop */
+    .main-content.with-sidebar.pt-16 {
+        padding-top: 5rem;
     }
 }
