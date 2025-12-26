@@ -512,6 +512,8 @@ export default function StatistichePage() {
               title="Totale Impianti"
               value={implantStats?.totale_impianti}
               icon={Syringe}
+              compareMode={false}
+              compareStats={null}
             />
             {Object.entries(implantStats?.per_tipo || {}).map(([tipo, count]) => (
               <Card key={tipo} className="stat-card">
