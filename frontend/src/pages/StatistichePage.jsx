@@ -55,6 +55,60 @@ const PRESTAZIONI_LABELS = {
 
 const YEARS = [2025, 2026, 2027, 2028, 2029, 2030];
 
+// Helper function outside component
+const getDiff = (current, previous) => {
+  if (!previous) return null;
+  return current - previous;
+};
+
+// DiffBadge component outside main component
+const DiffBadge = ({ diff }) => {
+  if (diff === null || diff === undefined) return null;
+  if (diff === 0) {
+    return (
+      <span className="stat-change flex items-center gap-1">
+        <Minus className="w-3 h-3" />
+        Invariato
+      </span>
+    );
+  }
+  if (diff > 0) {
+    return (
+      <span className="stat-change positive flex items-center gap-1">
+        <TrendingUp className="w-3 h-3" />
+        +{diff}
+      </span>
+    );
+  }
+  return (
+    <span className="stat-change negative flex items-center gap-1">
+      <TrendingDown className="w-3 h-3" />
+      {diff}
+    </span>
+  );
+};
+
+// StatCard component outside main component  
+const StatCard = ({ title, value, compareValue, icon: Icon, compareMode, compareStats }) => {
+  const diff = compareMode && compareStats ? getDiff(value, compareValue) : null;
+  return (
+    <Card className="stat-card">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="stat-value">{value || 0}</p>
+          <p className="stat-label">{title}</p>
+          {compareMode && <DiffBadge diff={diff} />}
+        </div>
+        {Icon && (
+          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+            <Icon className="w-5 h-5 text-primary" />
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+};
+
 export default function StatistichePage() {
   const { ambulatorio } = useAmbulatorio();
   const [loading, setLoading] = useState(true);
