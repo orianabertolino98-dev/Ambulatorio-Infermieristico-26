@@ -500,14 +500,131 @@ export default function StatistichePage() {
         </TabsList>
       </Tabs>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-        <StatCard
-          title="Totale Accessi"
-          value={stats?.totale_accessi}
-          compareValue={compareStats?.totale_accessi}
-          icon={Calendar}
-        />
+      {/* IMPLANT STATISTICS */}
+      {activeTab === "IMPIANTI" && implantStats && (
+        <>
+          {/* Summary Cards for Implants */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+            <StatCard
+              title="Totale Impianti"
+              value={implantStats?.totale_impianti}
+              icon={Syringe}
+            />
+            {Object.entries(implantStats?.per_tipo || {}).map(([tipo, count]) => (
+              <Card key={tipo} className="stat-card">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="stat-value">{count}</p>
+                    <p className="stat-label">{implantStats?.tipo_labels?.[tipo] || tipo}</p>
+                  </div>
+                  <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <Syringe className="w-5 h-5 text-emerald-600" />
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {/* Implant Types Detail */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Dettaglio Impianti per Tipo</CardTitle>
+              <CardDescription>
+                Conteggio degli impianti effettuati nel periodo selezionato
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {implantStats?.per_tipo && Object.keys(implantStats.per_tipo).length > 0 ? (
+                <div className="space-y-4">
+                  {Object.entries(implantStats.per_tipo).map(([tipo, count]) => (
+                    <div
+                      key={tipo}
+                      className="flex items-center justify-between p-4 bg-emerald-50 rounded-lg border border-emerald-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                          <Syringe className="w-5 h-5 text-emerald-600" />
+                        </div>
+                        <span className="font-medium">{implantStats?.tipo_labels?.[tipo] || tipo}</span>
+                      </div>
+                      <span className="text-2xl font-bold text-emerald-600">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Syringe className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Nessun impianto registrato per il periodo selezionato</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Monthly Breakdown for Implants */}
+          {implantStats?.dettaglio_mensile && Object.keys(implantStats.dettaglio_mensile).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Dettaglio Mensile Impianti</CardTitle>
+                <CardDescription>
+                  Riepilogo degli impianti mese per mese
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-4">
+                    {Object.entries(implantStats.dettaglio_mensile)
+                      .sort(([a], [b]) => a.localeCompare(b))
+                      .map(([month, data]) => {
+                        const [year, monthNum] = month.split("-");
+                        const monthName = MONTHS[parseInt(monthNum) - 1]?.label || month;
+                        const totalMonth = Object.values(data).reduce((a, b) => a + b, 0);
+
+                        return (
+                          <Card key={month} className="border border-emerald-200">
+                            <CardHeader className="pb-2 bg-emerald-50/50">
+                              <div className="flex items-center justify-between">
+                                <CardTitle className="text-base">
+                                  {monthName} {year}
+                                </CardTitle>
+                                <span className="text-lg font-bold text-emerald-600">
+                                  {totalMonth} impianti
+                                </span>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                              <div className="flex flex-wrap gap-2">
+                                {Object.entries(data).map(([tipo, count]) => (
+                                  <span
+                                    key={tipo}
+                                    className="text-sm bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full"
+                                  >
+                                    {implantStats?.tipo_labels?.[tipo] || tipo}: {count}
+                                  </span>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* REGULAR STATISTICS (MED/PICC) */}
+      {activeTab !== "IMPIANTI" && (
+        <>
+          {/* Summary Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+            <StatCard
+              title="Totale Accessi"
+              value={stats?.totale_accessi}
+              compareValue={compareStats?.totale_accessi}
+              icon={Calendar}
+            />
         <StatCard
           title="Pazienti Unici"
           value={stats?.pazienti_unici}
