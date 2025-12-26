@@ -934,6 +934,118 @@ async def get_time_slots():
         "tutti": morning_slots + afternoon_slots
     }
 
+# ============== DELETE ENDPOINTS ==============
+
+@api_router.delete("/schede-impianto-picc/{scheda_id}")
+async def delete_scheda_impianto(scheda_id: str, payload: dict = Depends(verify_token)):
+    scheda = await db.schede_impianto_picc.find_one({"id": scheda_id}, {"_id": 0})
+    if not scheda:
+        raise HTTPException(status_code=404, detail="Scheda non trovata")
+    if scheda["ambulatorio"] not in payload["ambulatori"]:
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo ambulatorio")
+    
+    await db.schede_impianto_picc.delete_one({"id": scheda_id})
+    return {"message": "Scheda impianto eliminata"}
+
+@api_router.delete("/schede-gestione-picc/{scheda_id}")
+async def delete_scheda_gestione(scheda_id: str, payload: dict = Depends(verify_token)):
+    scheda = await db.schede_gestione_picc.find_one({"id": scheda_id}, {"_id": 0})
+    if not scheda:
+        raise HTTPException(status_code=404, detail="Scheda non trovata")
+    if scheda["ambulatorio"] not in payload["ambulatori"]:
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo ambulatorio")
+    
+    await db.schede_gestione_picc.delete_one({"id": scheda_id})
+    return {"message": "Scheda gestione eliminata"}
+
+@api_router.delete("/schede-medicazione-med/{scheda_id}")
+async def delete_scheda_medicazione(scheda_id: str, payload: dict = Depends(verify_token)):
+    scheda = await db.schede_medicazione_med.find_one({"id": scheda_id}, {"_id": 0})
+    if not scheda:
+        raise HTTPException(status_code=404, detail="Scheda non trovata")
+    if scheda["ambulatorio"] not in payload["ambulatori"]:
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo ambulatorio")
+    
+    await db.schede_medicazione_med.delete_one({"id": scheda_id})
+    return {"message": "Scheda medicazione eliminata"}
+
+@api_router.put("/schede-impianto-picc/{scheda_id}")
+async def update_scheda_impianto(scheda_id: str, data: dict, payload: dict = Depends(verify_token)):
+    scheda = await db.schede_impianto_picc.find_one({"id": scheda_id}, {"_id": 0})
+    if not scheda:
+        raise HTTPException(status_code=404, detail="Scheda non trovata")
+    if scheda["ambulatorio"] not in payload["ambulatori"]:
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo ambulatorio")
+    
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.schede_impianto_picc.update_one({"id": scheda_id}, {"$set": data})
+    updated = await db.schede_impianto_picc.find_one({"id": scheda_id}, {"_id": 0})
+    return updated
+
+# ============== IMPLANT STATISTICS ==============
+@api_router.get("/statistics/implants")
+async def get_implant_statistics(
+    ambulatorio: Ambulatorio,
+    anno: int,
+    mese: Optional[int] = None,
+    payload: dict = Depends(verify_token)
+):
+    """Get statistics for implants (PICC, Port, Midline, etc.)"""
+    if ambulatorio.value not in payload["ambulatori"]:
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo ambulatorio")
+    
+    # Build date range query
+    if mese:
+        start_date = f"{anno}-{mese:02d}-01"
+        if mese == 12:
+            end_date = f"{anno + 1}-01-01"
+        else:
+            end_date = f"{anno}-{mese + 1:02d}-01"
+    else:
+        start_date = f"{anno}-01-01"
+        end_date = f"{anno + 1}-01-01"
+    
+    # Query implants
+    query = {
+        "ambulatorio": ambulatorio.value,
+        "data_impianto": {"$gte": start_date, "$lt": end_date}
+    }
+    
+    schede = await db.schede_impianto_picc.find(query, {"_id": 0}).to_list(1000)
+    
+    # Count by type
+    tipo_counts = {}
+    monthly_breakdown = {}
+    
+    for scheda in schede:
+        tipo = scheda.get("tipo_catetere", "altro")
+        tipo_counts[tipo] = tipo_counts.get(tipo, 0) + 1
+        
+        # Monthly breakdown
+        data_impianto = scheda.get("data_impianto", "")
+        if data_impianto:
+            month_key = data_impianto[:7]  # "YYYY-MM"
+            if month_key not in monthly_breakdown:
+                monthly_breakdown[month_key] = {}
+            monthly_breakdown[month_key][tipo] = monthly_breakdown[month_key].get(tipo, 0) + 1
+    
+    # Labels for types
+    tipo_labels = {
+        "picc": "PICC",
+        "picc_port": "PICC/Port",
+        "midline": "Midline",
+        "cvd_non_tunnellizzato": "CVC non tunnellizzato",
+        "cvd_tunnellizzato": "CVC tunnellizzato",
+        "port": "PORT",
+    }
+    
+    return {
+        "totale_impianti": len(schede),
+        "per_tipo": tipo_counts,
+        "tipo_labels": tipo_labels,
+        "dettaglio_mensile": monthly_breakdown
+    }
+
 # ============== ROOT ==============
 @api_router.get("/")
 async def root():
