@@ -59,6 +59,7 @@ export default function StatistichePage() {
   const { ambulatorio } = useAmbulatorio();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
+  const [implantStats, setImplantStats] = useState(null);
   const [compareStats, setCompareStats] = useState(null);
   const [activeTab, setActiveTab] = useState(
     ambulatorio === "villa_ginestre" ? "PICC" : "MED"
@@ -78,28 +79,40 @@ export default function StatistichePage() {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      const params = {
-        ambulatorio,
-        anno,
-        tipo: isVillaGinestre ? "PICC" : activeTab,
-      };
-      if (mese) params.mese = mese;
-
-      const response = await apiClient.get("/statistics", { params });
-      setStats(response.data);
-
-      if (compareMode) {
-        const compareParams = {
+      if (activeTab === "IMPIANTI") {
+        // Fetch implant statistics
+        const params = { ambulatorio, anno };
+        if (mese) params.mese = mese;
+        
+        const response = await apiClient.get("/statistics/implants", { params });
+        setImplantStats(response.data);
+        setStats(null);
+      } else {
+        // Fetch regular statistics
+        const params = {
           ambulatorio,
-          anno: compareAnno,
+          anno,
           tipo: isVillaGinestre ? "PICC" : activeTab,
         };
-        if (compareMese) compareParams.mese = compareMese;
+        if (mese) params.mese = mese;
 
-        const compareResponse = await apiClient.get("/statistics", { params: compareParams });
-        setCompareStats(compareResponse.data);
-      } else {
-        setCompareStats(null);
+        const response = await apiClient.get("/statistics", { params });
+        setStats(response.data);
+        setImplantStats(null);
+
+        if (compareMode) {
+          const compareParams = {
+            ambulatorio,
+            anno: compareAnno,
+            tipo: isVillaGinestre ? "PICC" : activeTab,
+          };
+          if (compareMese) compareParams.mese = compareMese;
+
+          const compareResponse = await apiClient.get("/statistics", { params: compareParams });
+          setCompareStats(compareResponse.data);
+        } else {
+          setCompareStats(null);
+        }
       }
     } catch (error) {
       toast.error("Errore nel caricamento delle statistiche");
